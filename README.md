@@ -1,7 +1,5 @@
-#Simple encryption/decryption tool
+# Simple encryption/decryption tool
 
-This is a simple program to encrypt and decrypt files
+This is a simple program to encrypt and decrypt files.
 
-The output file is displayed on the stdout
-
-The AEAD used is XChaCha20-Poly1305
+The AEAD used is XChaCha20-Poly1305 and the KDF used is argon2. Currently only argon2i is supported.
