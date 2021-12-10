@@ -12,7 +12,7 @@ const (
 
 	SaltLen = 16
 
-    NonceSize = 24
+	NonceSize = 24
 
 	ArgonITime = 3
 
@@ -21,12 +21,12 @@ const (
 	ArgonThreads = 8
 )
 
-func makeIKey(password, salt []byte) ([]byte) {
+func makeIKey(password, salt []byte) []byte {
 
 	return argon2.Key(password, salt, ArgonITime, ArgonMemory, ArgonThreads, KeyLen)
 }
 
-func Encrypt(password string, plaintext []byte) ([]byte, error) {
+func Encrypt(password, plaintext []byte) ([]byte, error) {
 
 	if len(password) == 0 {
 		return nil, errors.New("Password too short")
@@ -41,8 +41,7 @@ func Encrypt(password string, plaintext []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	passByte := []byte(password)
-    key := makeIKey(passByte, salt)
+	key := makeIKey(password, salt)
 
 	aead, err := chacha.NewX(key)
 	if err != nil {
@@ -62,28 +61,27 @@ func Encrypt(password string, plaintext []byte) ([]byte, error) {
 	return ciphertext, nil
 }
 
-func Decrypt(password string, ciphertext []byte) ([]byte, error) {
-    if len(password) == 0 {
-        return nil, errors.New("Password too short")
-    }
-    if len(ciphertext) < (SaltLen + NonceSize) {
-        return nil, errors.New("Ciphertext too short")
-    }
+func Decrypt(password, ciphertext []byte) ([]byte, error) {
+	if len(password) == 0 {
+		return nil, errors.New("Password too short")
+	}
+	if len(ciphertext) < (SaltLen + NonceSize) {
+		return nil, errors.New("Ciphertext too short")
+	}
 
-    salt, nonce, ciphertext := ciphertext[:SaltLen], ciphertext[SaltLen:SaltLen+NonceSize], ciphertext[SaltLen+NonceSize:]
+	salt, nonce, ciphertext := ciphertext[:SaltLen], ciphertext[SaltLen:SaltLen+NonceSize], ciphertext[SaltLen+NonceSize:]
 
-    passByte := []byte(password)
-    key := makeIKey(passByte, salt)
+	key := makeIKey(password, salt)
 
-    aead, err := chacha.NewX(key)
-    if err != nil {
-        return nil, err
-    }
+	aead, err := chacha.NewX(key)
+	if err != nil {
+		return nil, err
+	}
 
-    plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
-    if err != nil {
-        return nil, err
-    }
+	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+	if err != nil {
+		return nil, err
+	}
 
-    return plaintext, nil
+	return plaintext, nil
 }
