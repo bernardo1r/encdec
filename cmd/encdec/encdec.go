@@ -18,7 +18,7 @@ const usage = "Usage: encdec [option] input_file output_file\n" +
 	"-d    decrypt\n" +
 	"-e    encrypt\n\n"
 
-func getPassword() ([]byte, error) {
+func getPassword(confirmPass bool) ([]byte, error) {
 
 	state, err := terminal.GetState(int(os.Stdin.Fd()))
 	if err != nil {
@@ -42,15 +42,19 @@ func getPassword() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	fmt.Printf("\nConfirm password: ")
-	passwordConf, err := terminal.ReadPassword(int(os.Stdin.Fd()))
-	if err != nil {
-		return nil, err
-	}
 	fmt.Println("")
 
-	if bytes.Compare(password, passwordConf) != 0 {
-		return nil, errors.New("Passwords do not match")
+	if confirmPass {
+		fmt.Printf("Confirm password: ")
+		passwordConf, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		if err != nil {
+			return nil, err
+		}
+		fmt.Println("")
+
+		if bytes.Compare(password, passwordConf) != 0 {
+			return nil, errors.New("Passwords do not match")
+		}
 	}
 
 	return password, nil
@@ -123,7 +127,7 @@ func main() {
 		log.Fatalf("More than one option was passed\n\n")
 	}
 
-	password, err := getPassword()
+	password, err := getPassword(encFlag)
 	if err != nil {
 		log.Fatal(err)
 		os.Exit(1)
