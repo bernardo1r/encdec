@@ -103,10 +103,11 @@ func decrypt(password []byte, inputFile, outputFile *string) error {
 
 func main() {
 
+	log.SetFlags(0)
+
 	if len(os.Args) == 1 {
 		log.Fatalf("%s", usage)
 	}
-	log.SetFlags(0)
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s", usage) }
 
 	var decFlag, encFlag bool
@@ -130,7 +131,6 @@ func main() {
 	password, err := getPassword(encFlag)
 	if err != nil {
 		log.Fatal(err)
-		os.Exit(1)
 	}
 
 	switch {
