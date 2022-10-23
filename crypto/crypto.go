@@ -1,86 +1,95 @@
 package crypto
 
 import (
-	"crypto/rand"
+	"bytes"
 	"errors"
-	"golang.org/x/crypto/argon2"
+	"fmt"
+
+	"github.com/bernardo1r/encdec/argon2"
 	chacha "golang.org/x/crypto/chacha20poly1305"
 )
 
-const (
-	KeyLen = 32
+const NonceSize = 12
 
-	SaltLen = 16
+var CipherNonce = bytes.Repeat([]byte{0}, NonceSize)
 
-	NonceSize = 24
+var HeaderDelim = []byte("\n")
 
-	ArgonITime = 3
+func marshalHeader(key *argon2.ArgonKey) ([]byte, error) {
 
-	ArgonMemory = 1 << 20
-
-	ArgonThreads = 8
-)
-
-func makeIKey(password, salt []byte) []byte {
-
-	return argon2.Key(password, salt, ArgonITime, ArgonMemory, ArgonThreads, KeyLen)
+	header, err := key.Marshal()
+	if err != nil {
+		return nil, fmt.Errorf("could not marshal header: %w", err)
+	}
+	return append(header, HeaderDelim...), nil
 }
 
 func Encrypt(password, plaintext []byte) ([]byte, error) {
 
-	if len(password) == 0 {
-		return nil, errors.New("Password too short")
-	}
 	if len(plaintext) == 0 {
-		return nil, errors.New("Plaintext too short")
+		return nil, errors.New("plaintext too short")
 	}
 
-	salt := make([]byte, SaltLen)
-	_, err := rand.Read(salt)
+	argonKey, err := argon2.NewArgonKey(password)
 	if err != nil {
 		return nil, err
 	}
 
-	key := makeIKey(password, salt)
-
-	aead, err := chacha.NewX(key)
+	aead, err := chacha.New(argonKey.Key())
 	if err != nil {
 		return nil, err
 	}
 
-	nonce := make([]byte, SaltLen+NonceSize, SaltLen+NonceSize+len(plaintext)+aead.Overhead())
-	copy(nonce, salt)
+	ciphertext := aead.Seal(nil, CipherNonce, plaintext, nil)
 
-	_, err = rand.Read(nonce[SaltLen:])
+	header, err := marshalHeader(argonKey)
 	if err != nil {
 		return nil, err
 	}
 
-	ciphertext := aead.Seal(nonce, nonce[SaltLen:], plaintext, nil)
+	return append(header, ciphertext...), nil
+}
 
-	return ciphertext, nil
+func parseHeader(ciphertext []byte) ([]byte, []byte, error) {
+
+	header, ciphertext, found := bytes.Cut(ciphertext, HeaderDelim)
+	if len(header) == 0 || !found {
+		return nil, nil, errors.New("could not find header")
+	}
+
+	return header, ciphertext, nil
 }
 
 func Decrypt(password, ciphertext []byte) ([]byte, error) {
+
 	if len(password) == 0 {
-		return nil, errors.New("Password too short")
-	}
-	if len(ciphertext) < (SaltLen + NonceSize) {
-		return nil, errors.New("Ciphertext too short")
+		return nil, errors.New("password too short")
 	}
 
-	salt, nonce, ciphertext := ciphertext[:SaltLen], ciphertext[SaltLen:SaltLen+NonceSize], ciphertext[SaltLen+NonceSize:]
-
-	key := makeIKey(password, salt)
-
-	aead, err := chacha.NewX(key)
+	header, ciphertext, err := parseHeader(ciphertext)
 	if err != nil {
 		return nil, err
 	}
 
-	plaintext, err := aead.Open(nil, nonce, ciphertext, nil)
+	argonKey, err := argon2.NewArgonKey(password)
 	if err != nil {
 		return nil, err
+	}
+
+	err = argonKey.ParseHeader(header)
+	if err != nil {
+		return nil, err
+	}
+
+	aead, err := chacha.New(argonKey.Key())
+	if err != nil {
+		return nil, err
+	}
+
+	plaintext, err := aead.Open(nil, CipherNonce, ciphertext, nil)
+	if err != nil {
+		//wrap it or not?
+		return nil, fmt.Errorf("could not decrypt and authenticate: %w", err)
 	}
 
 	return plaintext, nil

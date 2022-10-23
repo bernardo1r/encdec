@@ -5,11 +5,12 @@ import (
 	"errors"
 	"flag"
 	"fmt"
-	"github.com/bernardo1r/encdec/crypto"
-	"golang.org/x/crypto/ssh/terminal"
 	"log"
 	"os"
 	"os/signal"
+
+	"github.com/bernardo1r/encdec/crypto"
+	"golang.org/x/term"
 )
 
 const usage = "Usage: encdec [option] input_file output_file\n" +
@@ -18,27 +19,31 @@ const usage = "Usage: encdec [option] input_file output_file\n" +
 	"-d    decrypt\n" +
 	"-e    encrypt\n\n"
 
-func getPassword(confirmPass bool) ([]byte, error) {
-
-	state, err := terminal.GetState(int(os.Stdin.Fd()))
+func checkError(err error) {
 	if err != nil {
 		log.Fatal(err)
 	}
+}
+
+func getPassword(confirmPass bool) ([]byte, error) {
+
+	state, err := term.GetState(int(os.Stdin.Fd()))
+	checkError(err)
 
 	c := make(chan os.Signal, 1)
 	defer close(c)
 
-	signal.Notify(c, os.Interrupt, os.Kill)
+	signal.Notify(c, os.Interrupt)
 	go func() {
 		_, ok := <-c
 		if ok {
-			terminal.Restore(int(os.Stdin.Fd()), state)
+			term.Restore(int(os.Stdin.Fd()), state)
 			os.Exit(1)
 		}
 	}()
 
 	fmt.Printf("Password: ")
-	password, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+	password, err := term.ReadPassword(int(os.Stdin.Fd()))
 	if err != nil {
 		return nil, err
 	}
@@ -46,59 +51,42 @@ func getPassword(confirmPass bool) ([]byte, error) {
 
 	if confirmPass {
 		fmt.Printf("Confirm password: ")
-		passwordConf, err := terminal.ReadPassword(int(os.Stdin.Fd()))
+		passwordConf, err := term.ReadPassword(int(os.Stdin.Fd()))
 		if err != nil {
 			return nil, err
 		}
 		fmt.Println("")
 
-		if bytes.Compare(password, passwordConf) != 0 {
-			return nil, errors.New("Passwords do not match")
+		if !bytes.Equal(password, passwordConf) {
+			return nil, errors.New("passwords do not match")
 		}
 	}
 
 	return password, nil
 }
 
-func encrypt(password []byte, inputFile, outputFile *string) error {
+func encrypt(password []byte, inputFile, outputFile *string) {
 
 	buff, err := os.ReadFile(*inputFile)
-	if err != nil {
-		return err
-	}
+	checkError(err)
 
 	buff, err = crypto.Encrypt(password, buff)
-	if err != nil {
-		return err
-	}
+	checkError(err)
 
 	err = os.WriteFile(*outputFile, buff, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	checkError(err)
 }
 
-func decrypt(password []byte, inputFile, outputFile *string) error {
+func decrypt(password []byte, inputFile, outputFile *string) {
 
 	buff, err := os.ReadFile(*inputFile)
-	if err != nil {
-		return err
-	}
+	checkError(err)
 
 	buff, err = crypto.Decrypt(password, buff)
-	if err != nil {
-		return err
-	}
+	checkError(err)
 
 	err = os.WriteFile(*outputFile, buff, 0644)
-	if err != nil {
-		return err
-	}
-
-	return nil
-
+	checkError(err)
 }
 
 func main() {
@@ -135,12 +123,8 @@ func main() {
 
 	switch {
 	case encFlag:
-		err = encrypt(password, &inputFile, &outputFile)
+		encrypt(password, &inputFile, &outputFile)
 	default:
-		err = decrypt(password, &inputFile, &outputFile)
-	}
-
-	if err != nil {
-		log.Fatal(err)
+		decrypt(password, &inputFile, &outputFile)
 	}
 }
