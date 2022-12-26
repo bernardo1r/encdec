@@ -1,19 +1,20 @@
-package crypto
+	package crypto
 
 import (
+	"bufio"
 	"bytes"
 	"errors"
 	"fmt"
+	"io"
 
 	"github.com/bernardo1r/encdec/argon2"
-	chacha "golang.org/x/crypto/chacha20poly1305"
 )
 
 const NonceSize = 12
 
 var CipherNonce = bytes.Repeat([]byte{0}, NonceSize)
 
-var HeaderDelim = []byte("\n")
+const HeaderDelim = '\n'
 
 func marshalHeader(key *argon2.ArgonKey) ([]byte, error) {
 
@@ -21,76 +22,91 @@ func marshalHeader(key *argon2.ArgonKey) ([]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("could not marshal header: %w", err)
 	}
-	return append(header, HeaderDelim...), nil
+	return append(header, HeaderDelim), nil
 }
 
-func Encrypt(password, plaintext []byte) ([]byte, error) {
-
-	if len(plaintext) == 0 {
-		return nil, errors.New("plaintext too short")
-	}
-
+func Encrypt(password []byte, src io.Reader, dst io.Writer) error {
 	argonKey, err := argon2.NewArgonKey(password)
 	if err != nil {
-		return nil, err
+		return err
 	}
-
-	aead, err := chacha.New(argonKey.Key())
-	if err != nil {
-		return nil, err
-	}
-
-	ciphertext := aead.Seal(nil, CipherNonce, plaintext, nil)
 
 	header, err := marshalHeader(argonKey)
 	if err != nil {
+		return err
+	}
+
+	writer, err := NewWriter(argonKey.Key(), header, dst)
+	if err != nil {
+		return err
+	}
+
+	n, err := io.Copy(writer, src)
+	if err != nil {
+		return err
+	}
+	if n == 0 {
+		fmt.Println("Encrypted empty file!")
+	}
+
+	err = writer.Close()
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func parseHeader(src io.ReadSeeker) ([]byte, error) {
+	reader := bufio.NewReader(src)
+	header, err := reader.ReadBytes(HeaderDelim)
+	header = header[:len(header)-1]
+	switch {
+	case err != nil:
 		return nil, err
+	case len(header) == 0:
+		return nil, errors.New("empty header")
 	}
-
-	return append(header, ciphertext...), nil
-}
-
-func parseHeader(ciphertext []byte) ([]byte, []byte, error) {
-
-	header, ciphertext, found := bytes.Cut(ciphertext, HeaderDelim)
-	if len(header) == 0 || !found {
-		return nil, nil, errors.New("could not find header")
-	}
-
-	return header, ciphertext, nil
-}
-
-func Decrypt(password, ciphertext []byte) ([]byte, error) {
-
-	if len(password) == 0 {
-		return nil, errors.New("password too short")
-	}
-
-	header, ciphertext, err := parseHeader(ciphertext)
+	_, err = src.Seek(int64(-reader.Buffered()), 1)
 	if err != nil {
 		return nil, err
+	}
+
+	return header, nil
+}
+
+func Decrypt(password []byte, src io.ReadSeeker, dst io.Writer) error {
+	if len(password) == 0 {
+		return errors.New("password too short")
+	}
+
+	header, err := parseHeader(src)
+	if err != nil {
+		return err
 	}
 
 	argonKey, err := argon2.NewArgonKey(password)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
 	err = argonKey.ParseHeader(header)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	aead, err := chacha.New(argonKey.Key())
+	reader, err := NewReader(argonKey.Key(), src)
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	plaintext, err := aead.Open(nil, CipherNonce, ciphertext, nil)
+	n, err := io.Copy(dst, reader)
 	if err != nil {
-		//wrap it or not?
-		return nil, fmt.Errorf("could not decrypt and authenticate: %w", err)
+		return err
+	}
+	if n == 0 {
+		fmt.Println("Decrypted empty file!")
 	}
 
-	return plaintext, nil
+	return nil
 }

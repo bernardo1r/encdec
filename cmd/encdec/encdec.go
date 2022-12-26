@@ -17,7 +17,7 @@ const usage = "Usage: encdec [option] input_file output_file\n" +
 	"Default option is to decrypt\n\n" +
 	"Options:\n\n" +
 	"-d    decrypt\n" +
-	"-e    encrypt\n\n"
+	"-e    encrypt\n"
 
 func checkError(err error) {
 	if err != nil {
@@ -25,10 +25,19 @@ func checkError(err error) {
 	}
 }
 
-func getPassword(confirmPass bool) ([]byte, error) {
+func checkCloseError(err error, file *os.File) {
+	if err != nil {
+		file.Close()
+		os.Remove(file.Name())
+		log.Fatal(err)
+	}
+}
 
+func getPassword(confirmPass bool) ([]byte, error) {
 	state, err := term.GetState(int(os.Stdin.Fd()))
-	checkError(err)
+	if err != nil {
+		return nil, err
+	}
 
 	c := make(chan os.Signal, 1)
 	defer close(c)
@@ -65,32 +74,42 @@ func getPassword(confirmPass bool) ([]byte, error) {
 	return password, nil
 }
 
-func encrypt(password []byte, inputFile, outputFile *string) {
+func openFiles(inputFile string, outputFile string) (*os.File, *os.File, error) {
+	src, err := os.Open(inputFile)
+	if err != nil {
+		return nil, nil, err
+	}
 
-	buff, err := os.ReadFile(*inputFile)
-	checkError(err)
+	dst, err := os.Create(outputFile)
+	if err != nil {
+		src.Close()
+		return nil, nil, err
+	}
 
-	buff, err = crypto.Encrypt(password, buff)
-	checkError(err)
-
-	err = os.WriteFile(*outputFile, buff, 0644)
-	checkError(err)
+	return src, dst, nil
 }
 
-func decrypt(password []byte, inputFile, outputFile *string) {
-
-	buff, err := os.ReadFile(*inputFile)
+func encrypt(password []byte, inputFile, outputFile string) {
+	src, dst, err := openFiles(inputFile, outputFile)
 	checkError(err)
+	defer src.Close()
+	defer dst.Close()
 
-	buff, err = crypto.Decrypt(password, buff)
-	checkError(err)
+	err = crypto.Encrypt(password, src, dst)
+	checkCloseError(err, dst)
+}
 
-	err = os.WriteFile(*outputFile, buff, 0644)
+func decrypt(password []byte, inputFile string, outputFile string) {
+	src, dst, err := openFiles(inputFile, outputFile)
 	checkError(err)
+	defer src.Close()
+	defer dst.Close()
+
+	err = crypto.Decrypt(password, src, dst)
+	checkCloseError(err, dst)
 }
 
 func main() {
-
 	log.SetFlags(0)
 
 	if len(os.Args) == 1 {
@@ -106,25 +125,23 @@ func main() {
 	var inputFile, outputFile string
 
 	if inputFile = flag.Arg(0); inputFile == "" {
-		log.Fatalf("Error: Input file not specified\n\n")
+		log.Fatalf("Error: Input file not specified\n")
 	}
 	if outputFile = flag.Arg(1); outputFile == "" {
-		log.Fatalf("Error: Output file not specified\n\n")
+		log.Fatalf("Error: Output file not specified\n")
 	}
 
 	if flag.NFlag() > 1 {
-		log.Fatalf("More than one option was passed\n\n")
+		log.Fatalf("More than one option was passed\n")
 	}
 
 	password, err := getPassword(encFlag)
-	if err != nil {
-		log.Fatal(err)
-	}
+	checkError(err)
 
 	switch {
 	case encFlag:
-		encrypt(password, &inputFile, &outputFile)
+		encrypt(password, inputFile, outputFile)
 	default:
-		decrypt(password, &inputFile, &outputFile)
+		decrypt(password, inputFile, outputFile)
 	}
 }
