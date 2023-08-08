@@ -1,18 +1,12 @@
-package crypto
+package encdec
 
 import (
 	"bytes"
 	"crypto/cipher"
 	"errors"
-	"fmt"
 	"io"
 
 	"golang.org/x/crypto/chacha20poly1305"
-)
-
-const (
-	ChunkSize            = 64 * (1 << 10) //64 KiB
-	EncryptedPayloadSize = ChunkSize + chacha20poly1305.Overhead
 )
 
 func incNonce(nonce *[chacha20poly1305.NonceSize]byte) error {
@@ -29,26 +23,25 @@ func incNonce(nonce *[chacha20poly1305.NonceSize]byte) error {
 }
 
 type Writer struct {
-	aead        cipher.AEAD
-	argonHeader []byte
-	dst         io.Writer
-	nonce       [chacha20poly1305.NonceSize]byte
-	buff        bytes.Buffer
-	err         error
+	aead      cipher.AEAD
+	chunkSize int64
+	dst       io.Writer
+	nonce     [chacha20poly1305.NonceSize]byte
+	buff      bytes.Buffer
+	err       error
 }
 
-func NewWriter(key []byte, argonHeader []byte, dst io.Writer) (*Writer, error) {
+func NewWriter(key []byte, dst io.Writer, params *Params) (io.WriteCloser, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
 	w := &Writer{
-		aead:        aead,
-		argonHeader: make([]byte, len(argonHeader)),
-		dst:         dst,
+		aead:      aead,
+		dst:       dst,
+		chunkSize: params.ChunkSize,
 	}
-	w.buff.Grow(EncryptedPayloadSize)
-	copy(w.argonHeader, argonHeader)
+	w.buff.Grow(int(w.chunkSize + chacha20poly1305.Overhead))
 	return w, nil
 }
 
@@ -74,21 +67,13 @@ func (w *Writer) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
 	}
-	if w.argonHeader != nil {
-		_, err := w.dst.Write(w.argonHeader)
-		if err != nil {
-			w.err = fmt.Errorf("writing to underlying writer failed: %w", err)
-			return 0, w.err
-		}
-		w.argonHeader = nil
-	}
 
 	total := len(p)
 	for len(p) > 0 {
-		size := min(ChunkSize-w.buff.Len(), len(p))
+		size := min(int(w.chunkSize)-w.buff.Len(), len(p))
 		n, _ := w.buff.Write(p[:size])
 		p = p[n:]
-		if w.buff.Len() == ChunkSize {
+		if w.buff.Len() == int(w.chunkSize) {
 			err := w.flush()
 			if err != nil {
 				w.err = err
@@ -115,6 +100,7 @@ func (w *Writer) Close() error {
 
 type Reader struct {
 	aead      cipher.AEAD
+	chunkSize int
 	src       io.Reader
 	nonce     [chacha20poly1305.NonceSize]byte
 	buff      bytes.Buffer
@@ -122,17 +108,18 @@ type Reader struct {
 	err       error
 }
 
-func NewReader(key []byte, src io.Reader) (*Reader, error) {
+func NewReader(key []byte, src io.Reader, params *Params) (io.Reader, error) {
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
 	}
 
 	r := &Reader{
-		aead: aead,
-		src:  src,
+		aead:      aead,
+		src:       src,
+		chunkSize: int(params.ChunkSize),
 	}
-	r.buff.Grow(EncryptedPayloadSize)
+	r.buff.Grow(r.chunkSize + chacha20poly1305.Overhead)
 	return r, nil
 }
 
@@ -141,7 +128,7 @@ func NewReader(key []byte, src io.Reader) (*Reader, error) {
 func (r *Reader) readChunk() (bool, error) {
 	var last bool
 	r.buff.Reset()
-	n, err := io.CopyN(&r.buff, r.src, EncryptedPayloadSize)
+	n, err := io.CopyN(&r.buff, r.src, int64(r.chunkSize)+chacha20poly1305.Overhead)
 	if err != nil {
 		if err != io.EOF {
 			return false, err
@@ -149,7 +136,7 @@ func (r *Reader) readChunk() (bool, error) {
 		last = true
 	}
 
-	if n < EncryptedPayloadSize {
+	if n < (int64(r.chunkSize) + chacha20poly1305.Overhead) {
 		last = true
 	}
 
