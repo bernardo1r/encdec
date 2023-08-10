@@ -3,18 +3,18 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"os"
 
 	"github.com/bernardo1r/encdec"
 )
 
-const usage = "Usage: encdec [option] input_file output_file\n" +
+const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 	"Default option is to decrypt\n\n" +
 	"Options:\n\n" +
-	"-d    decrypt\n" +
-	"-e    encrypt\n"
+	"    -p    password, if not provided will be prompted\n" +
+	"    -d    decrypt\n" +
+	"    -e    encrypt\n"
 
 func checkError(err error) {
 	if err != nil {
@@ -33,13 +33,13 @@ func checkCloseError(err error, file *os.File) {
 func openFiles(inputFile string, outputFile string) (*os.File, *os.File, error) {
 	src, err := os.Open(inputFile)
 	if err != nil {
-		return nil, nil, fmt.Errorf("opening input file: %w", err)
+		return nil, nil, fmt.Errorf("input file: %w", err)
 	}
 
 	dst, err := os.Create(outputFile)
 	if err != nil {
 		src.Close()
-		return nil, nil, fmt.Errorf("opening output file: %w", err)
+		return nil, nil, fmt.Errorf("output file: %w", err)
 	}
 
 	return src, dst, nil
@@ -61,13 +61,9 @@ func encrypt(password []byte, inputFile string, outputFile string) {
 	_, err = dst.Write(header)
 	checkCloseError(err, dst)
 
-	w, err := encdec.NewWriter(key, dst, &params)
+	err = encdec.Encrypt(key, src, dst, &params)
 	checkCloseError(err, dst)
 
-	_, err = io.Copy(w, src)
-	checkCloseError(err, dst)
-
-	err = w.Close()
 	checkCloseError(err, dst)
 }
 
@@ -83,10 +79,7 @@ func decrypt(password []byte, inputFile string, outputFile string) {
 	key, err := encdec.Key(password, params)
 	checkCloseError(err, dst)
 
-	r, err := encdec.NewReader(key, src, params)
-	checkCloseError(err, dst)
-
-	_, err = io.Copy(dst, r)
+	err = encdec.Decrypt(key, src, dst, params)
 	checkCloseError(err, dst)
 }
 
@@ -99,12 +92,17 @@ func main() {
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s", usage) }
 
 	var decFlag, encFlag bool
+	var pass string
+	flag.StringVar(&pass, "p", "", "encryption password")
 	flag.BoolVar(&decFlag, "d", false, "encrypt the input")
 	flag.BoolVar(&encFlag, "e", false, "decrypt the input")
 	flag.Parse()
 
-	var inputFile, outputFile string
+	if decFlag && encFlag {
+		log.Fatalf("More than one option was passed\n")
+	}
 
+	var inputFile, outputFile string
 	if inputFile = flag.Arg(0); inputFile == "" {
 		log.Fatalf("Error: Input file not specified\n")
 	}
@@ -112,12 +110,14 @@ func main() {
 		log.Fatalf("Error: Output file not specified\n")
 	}
 
-	if flag.NFlag() > 1 {
-		log.Fatalf("More than one option was passed\n")
+	var password []byte
+	var err error
+	if pass != "" {
+		password = []byte(pass)
+	} else {
+		password, err = encdec.ReadPassword()
+		checkError(err)
 	}
-
-	password, err := encdec.ReadPassword()
-	checkError(err)
 
 	switch {
 	case encFlag:

@@ -14,9 +14,9 @@ const (
 	ArgonType    = "argon2id"
 	ArgonVersion = 19
 	SaltSize     = 16
-	ArgonTime    = 10
-	ArgonMemory  = 1 << 22
-	ArgonThreads = 8
+	ArgonTime    = 1
+	ArgonMemory  = 1 << 19
+	ArgonThreads = 1
 	ChunkSize    = 64 * (1 << 10) //64 KiB
 )
 

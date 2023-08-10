@@ -9,19 +9,6 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-func incNonce(nonce *[chacha20poly1305.NonceSize]byte) error {
-	for i := len(nonce) - 1; i >= 0; i-- {
-		nonce[i]++
-		if nonce[i] != 0 {
-			break
-		}
-		if i == 0 {
-			return errors.New("chunk counter overflowed")
-		}
-	}
-	return nil
-}
-
 type Writer struct {
 	aead      cipher.AEAD
 	chunkSize int64
@@ -52,7 +39,7 @@ func (w *Writer) flush() error {
 		return err
 	}
 	w.buff.Reset()
-	err = incNonce(&w.nonce)
+	err = incNonce(w.nonce[:])
 	return err
 }
 
@@ -146,7 +133,7 @@ func (r *Reader) readChunk() (bool, error) {
 	}
 	r.buff.Truncate(len(plaintext))
 
-	err = incNonce(&r.nonce)
+	err = incNonce(r.nonce[:])
 	if err != nil {
 		return false, err
 	}

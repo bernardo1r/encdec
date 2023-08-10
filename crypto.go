@@ -3,6 +3,7 @@ package encdec
 import (
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -42,6 +43,19 @@ func ReadPassword() ([]byte, error) {
 		return nil, err
 	}
 	return password, nil
+}
+
+func incNonce(nonce []byte) error {
+	for i := len(nonce) - 1; i >= 0; i-- {
+		nonce[i]++
+		if nonce[i] != 0 {
+			break
+		}
+		if i == 0 {
+			return errors.New("chunk counter overflowed")
+		}
+	}
+	return nil
 }
 
 func random(n uint8) ([]byte, error) {
