@@ -9,15 +9,26 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-func Encrypt(key []byte, inputFile io.Reader, outputFile io.Writer, params *Params) error {
+// Encrypt encrypts src into dst using the key and the params.
+func Encrypt(
+	key []byte,
+	src io.Reader,
+	dst io.Writer,
+	params *Params,
+) error {
+	err := params.Check()
+	if err != nil {
+		return err
+	}
+
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return err
 	}
 	nonce := make([]byte, chacha20poly1305.NonceSize)
-	err = process(inputFile,
+	err = process(src,
 		int(params.ChunkSize),
-		outputFile,
+		dst,
 		int(params.ChunkSize)+aead.Overhead(),
 		func(input []byte, output []byte) ([]byte, error) {
 			ciphertext := aead.Seal(output[:0], nonce, input, nil)
@@ -32,16 +43,28 @@ func Encrypt(key []byte, inputFile io.Reader, outputFile io.Writer, params *Para
 	return nil
 }
 
-func Decrypt(key []byte, inputFile io.Reader, outputFile io.Writer, params *Params) error {
+// Decrypt decrypts src into dst using the key and the params.
+func Decrypt(
+	key []byte,
+	src io.Reader,
+	dst io.Writer,
+	params *Params,
+) error {
+	err := params.Check()
+	if err != nil {
+		return err
+	}
+
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return err
 	}
 	nonce := make([]byte, chacha20poly1305.NonceSize)
 	err = process(
-		inputFile,
+		src,
 		int(params.ChunkSize)+aead.Overhead(),
-		outputFile, int(params.ChunkSize),
+		dst,
+		int(params.ChunkSize),
 		func(input []byte, output []byte) ([]byte, error) {
 			plaintext, err := aead.Open(output[:0], nonce, input, nil)
 			if err != nil {
@@ -59,11 +82,11 @@ func Decrypt(key []byte, inputFile io.Reader, outputFile io.Writer, params *Para
 }
 
 func process(
-	inputFile io.Reader,
+	src io.Reader,
 	buffInSize int,
-	outputFile io.Writer,
+	dst io.Writer,
 	buffOutSize int,
-	p func([]byte, []byte) ([]byte, error),
+	p func(input []byte, output []byte) ([]byte, error),
 ) error {
 	buffIn := make([]byte, buffInSize)
 	buffOut := make([]byte, buffOutSize)
@@ -81,7 +104,7 @@ func process(
 				return
 			default:
 			}
-			n, err := inputFile.Read(buffIn)
+			n, err := src.Read(buffIn)
 			switch {
 			case errors.Is(err, io.EOF):
 				cancel(nil)
@@ -115,13 +138,13 @@ func process(
 	}()
 	go func() {
 		defer close(written)
-		for ciphertext := range chanOut {
+		for output := range chanOut {
 			select {
 			case <-ctx.Done():
 				return
 			default:
 			}
-			_, err := outputFile.Write(ciphertext)
+			_, err := dst.Write(output)
 			if err != nil {
 				cancel(err)
 				return

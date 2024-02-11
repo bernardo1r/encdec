@@ -15,42 +15,74 @@ const (
 	ArgonVersion = 19
 	SaltSize     = 16
 	ArgonTime    = 1
-	ArgonMemory  = 1 << 19
-	ArgonThreads = 1
-	ChunkSize    = 64 * (1 << 10) //64 KiB
+	ArgonMemory  = 1 << 21
+	ArgonThreads = 4
+	ChunkSize    = 64 * (1 << 10) // 64 KiB
 )
 
+// Params represents the parameters used to generate a symmetric key using
+// Argon2 and the chunk size in bytes for splitting the payload before
+// encrypting they with unique nonces.
 type Params struct {
-	ArgonType    string
+	// ArgonVersion defines what version number of Argon2
+	// will be used to derivate the key.
 	ArgonVersion uint8
-	SaltSize     uint8
-	Salt         []byte
-	ArgonTime    uint32
-	ArgonMemory  uint32
+
+	// ArgonType is the version of Argon2 that will be used
+	// to derivate the key.
+	ArgonType string
+
+	// SaltSize is the length, in bytes, of the salt that will be
+	// generated.
+	SaltSize uint8
+
+	// Salt is the actual salt used.
+	Salt []byte
+
+	// ArgonTime is the number of passes used.
+	ArgonTime uint32
+
+	// ArgonMemory is the amount of memory used in KiB.
+	ArgonMemory uint32
+
+	// ArgonThreads is the number of threads used.
 	ArgonThreads uint8
-	ChunkSize    int64
+
+	// ChunkSize is the length, in bytes, that the plaintext
+	// will be splitted and encrypted with different nonces.
+	ChunkSize int64
 }
 
+// NewParams creates an instance of Params struct with default configuration
+func NewParams() *Params {
+	params := new(Params)
+	params.Check()
+	return params
+}
+
+// Check checks if the Params fields are correctly filled. Correcting them
+// when a field with the zero value is detected or returning an error
+// if a field has an invalid value.
 func (p *Params) Check() error {
-	errLevelInfoString := "params: "
+	errInfoLevelString := "params: "
 
 	if p.ArgonType == "" {
 		p.ArgonType = ArgonType
 	} else if p.ArgonType != ArgonType {
-		return errors.New(errLevelInfoString + "invalid argon2 type")
+		return errors.New(errInfoLevelString + "invalid argon2 type")
 	}
 
 	if p.ArgonVersion == 0 {
 		p.ArgonVersion = ArgonVersion
 	} else if p.ArgonVersion != ArgonVersion {
-		return errors.New(errLevelInfoString + "invalid argon2 version")
+		return errors.New(errInfoLevelString + "invalid argon2 version")
 	}
 
 	if p.SaltSize == 0 {
 		p.SaltSize = SaltSize
 	}
 	if p.Salt != nil && len(p.Salt) != int(p.SaltSize) {
-		return errors.New(errLevelInfoString + "salt is not the same size as salt size")
+		return errors.New(errInfoLevelString + "salt is not the same size as salt size")
 	}
 
 	if p.ArgonTime == 0 {
@@ -68,12 +100,14 @@ func (p *Params) Check() error {
 	if p.ChunkSize == 0 {
 		p.ChunkSize = ChunkSize
 	} else if p.ChunkSize < 0 {
-		return errors.New(errLevelInfoString + "chunk size too small")
+		return errors.New(errInfoLevelString + "chunk size too small")
 	}
 
 	return nil
 }
 
+// MarshalHeader returns a string header as a byte slice made from
+// the Params fields. Returns an error if the Params used are not valid.
 func (p *Params) MarshalHeader() ([]byte, error) {
 	err := p.Check()
 	if err != nil {
@@ -95,20 +129,22 @@ func (p *Params) MarshalHeader() ([]byte, error) {
 	return []byte(s), nil
 }
 
+// ParseHeader parses the header of the given src stream.
+// It create a new Params object and load its fields from the provided header.
 func ParseHeader(src io.ReadSeeker) (*Params, error) {
-	errLevelInfoString := "parsing header: "
-	errParsing := errors.New(errLevelInfoString + "corrupted header")
+	errInfoLevelString := "parsing header: "
+	errParsing := errors.New(errInfoLevelString + "corrupted header")
 
 	buff := bufio.NewReader(src)
 	line, err := buff.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"%w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
 	}
 	line = line[:len(line)-1]
 
 	_, err = src.Seek(int64(len(line)+1), io.SeekStart)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"%w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
 	}
 	args := strings.Split(line, "$")
 	if len(args) != 6 || args[0] != "" {
@@ -126,7 +162,7 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	u, err := strconv.ParseUint(values[1], 10, 8)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing argon2 version %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 version %w", err)
 	}
 	params.ArgonVersion = uint8(u)
 
@@ -143,7 +179,7 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	u, err = strconv.ParseUint(subValues[1], 10, 32)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing argon2 time: %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 time: %w", err)
 	}
 	params.ArgonTime = uint32(u)
 
@@ -154,7 +190,7 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	u, err = strconv.ParseUint(subValues[1], 10, 32)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing argon2 memory: %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 memory: %w", err)
 	}
 	params.ArgonMemory = uint32(u)
 
@@ -165,7 +201,7 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	u, err = strconv.ParseUint(subValues[1], 10, 8)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing argon2 threads: %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 threads: %w", err)
 	}
 	params.ArgonThreads = uint8(u)
 
@@ -177,10 +213,10 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	params.Salt, err = base64.RawStdEncoding.DecodeString(values[1])
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing salt: %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing salt: %w", err)
 	}
 	if len(params.Salt) > (1 << 8) {
-		return nil, errors.New(errLevelInfoString + "parsing salt: salt too long")
+		return nil, errors.New(errInfoLevelString + "parsing salt: salt too long")
 	}
 	params.SaltSize = uint8(len(params.Salt))
 
@@ -191,13 +227,13 @@ func ParseHeader(src io.ReadSeeker) (*Params, error) {
 	}
 	i, err := strconv.ParseInt(values[1], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"parsing chunk size: %w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"parsing chunk size: %w", err)
 	}
 
 	params.ChunkSize = int64(i)
 	err = params.Check()
 	if err != nil {
-		return nil, fmt.Errorf(errLevelInfoString+"%w", err)
+		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
 	}
 
 	return &params, nil

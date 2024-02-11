@@ -16,6 +16,8 @@ const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 	"    -d    decrypt\n" +
 	"    -e    encrypt\n"
 
+const passwordMessage = "Password: "
+
 func checkError(err error) {
 	if err != nil {
 		log.Fatalln(err)
@@ -52,7 +54,7 @@ func encrypt(password []byte, inputFile string, outputFile string) {
 	defer dst.Close()
 
 	var params encdec.Params
-	key, _, err := encdec.NewKey(password, &params)
+	key, err := encdec.Key(password, &params)
 	checkCloseError(err, dst)
 
 	header, err := params.MarshalHeader()
@@ -115,7 +117,7 @@ func main() {
 	if pass != "" {
 		password = []byte(pass)
 	} else {
-		password, err = encdec.ReadPassword()
+		password, err = encdec.ReadPassword(passwordMessage)
 		checkError(err)
 	}
 

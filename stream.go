@@ -9,6 +9,7 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
+// Writer writes to underlying writer encrypting the data
 type Writer struct {
 	aead      cipher.AEAD
 	chunkSize int64
@@ -18,7 +19,13 @@ type Writer struct {
 	err       error
 }
 
+// NewWriter creates a new Writer using a 32 byte key.
 func NewWriter(key []byte, dst io.Writer, params *Params) (io.WriteCloser, error) {
+	err := params.Check()
+	if err != nil {
+		return nil, err
+	}
+
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
@@ -50,6 +57,11 @@ func min(x int, y int) int {
 	return y
 }
 
+// Write writes len(p) bytes from p to the buffer.
+// If the buffer is complete it will encrypt the data and
+// write to the underlying writer with the AEAD tag appended to it.
+// It returns the number of bytes written to the buffer and an error,
+// if any.
 func (w *Writer) Write(p []byte) (int, error) {
 	if w.err != nil {
 		return 0, w.err
@@ -71,6 +83,8 @@ func (w *Writer) Write(p []byte) (int, error) {
 	return total, nil
 }
 
+// Close encrypt and write any remaning data in the buffer plus the AEAD tag,
+// to the underlying writer. Close returns an error if it has already been called.
 func (w *Writer) Close() error {
 	if w.err != nil {
 		return w.err
@@ -85,6 +99,7 @@ func (w *Writer) Close() error {
 	return nil
 }
 
+// Reader reads encrypted data from the underlying reader.
 type Reader struct {
 	aead      cipher.AEAD
 	chunkSize int
@@ -95,7 +110,13 @@ type Reader struct {
 	err       error
 }
 
+// NewReader creates a new Reader using a 32 byte key.
 func NewReader(key []byte, src io.Reader, params *Params) (io.Reader, error) {
+	err := params.Check()
+	if err != nil {
+		return nil, err
+	}
+
 	aead, err := chacha20poly1305.New(key)
 	if err != nil {
 		return nil, err
@@ -111,7 +132,7 @@ func NewReader(key []byte, src io.Reader, params *Params) (io.Reader, error) {
 }
 
 // readChunk reads the next chunk from src and decrypt it.
-// returns true if it is the last chunk
+// Returns true if it is the last chunk.
 func (r *Reader) readChunk() (bool, error) {
 	var last bool
 	r.buff.Reset()
@@ -140,6 +161,9 @@ func (r *Reader) readChunk() (bool, error) {
 	return last, nil
 }
 
+// Read up to len(p) bytes, decrypting they and storing them in p.
+// It returns the number of bytes read and any error encountered.
+// At the end of file, Read returns 0 and io.EOF.
 func (r *Reader) Read(p []byte) (int, error) {
 	if r.err != nil {
 		return 0, r.err
