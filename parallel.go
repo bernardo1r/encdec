@@ -107,7 +107,6 @@ func process(
 			n, err := src.Read(buffIn)
 			switch {
 			case errors.Is(err, io.EOF):
-				cancel(nil)
 				return
 			case err != nil:
 				cancel(err)
@@ -151,6 +150,7 @@ func process(
 			}
 			written <- struct{}{}
 		}
+		cancel(nil)
 	}()
 	<-ctx.Done()
 	err := context.Cause(ctx)
