@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"golang.org/x/crypto/chacha20poly1305"
+	"golang.org/x/sync/errgroup"
 )
 
 // Encrypt encrypts src into dst using the key and the params.
@@ -90,70 +91,66 @@ func process(
 ) error {
 	buffIn := make([]byte, buffInSize)
 	buffOut := make([]byte, buffOutSize)
-	ctx, cancel := context.WithCancelCause(context.Background())
-
+	group, ctx := errgroup.WithContext(context.Background())
 	chanIn := make(chan []byte)
 	chanOut := make(chan []byte)
 	read := make(chan struct{})
 	written := make(chan struct{})
-	go func() {
+	group.Go(func() error {
 		defer close(chanIn)
 		for {
 			select {
 			case <-ctx.Done():
-				return
+				return nil
 			default:
 			}
 			n, err := src.Read(buffIn)
 			switch {
 			case errors.Is(err, io.EOF):
-				return
+				return nil
 			case err != nil:
-				cancel(err)
-				return
+				return err
 			}
 			chanIn <- buffIn[:n]
 			<-read
 		}
-	}()
-	go func() {
+	})
+	group.Go(func() error {
 		defer close(chanOut)
 		defer close(read)
 		for input := range chanIn {
 			select {
 			case <-ctx.Done():
-				return
+				return nil
 			default:
 			}
 			output, err := p(input, buffOut)
 			if err != nil {
-				cancel(err)
-				return
+				return err
 			}
 			read <- struct{}{}
 			chanOut <- output
 			<-written
 		}
-	}()
-	go func() {
+		return nil
+	})
+	group.Go(func() error {
 		defer close(written)
 		for output := range chanOut {
 			select {
 			case <-ctx.Done():
-				return
+				return nil
 			default:
 			}
 			_, err := dst.Write(output)
 			if err != nil {
-				cancel(err)
-				return
+				return err
 			}
 			written <- struct{}{}
 		}
-		cancel(nil)
-	}()
-	<-ctx.Done()
-	err := context.Cause(ctx)
+		return nil
+	})
+	err := group.Wait()
 	if err != ctx.Err() {
 		return err
 	}
