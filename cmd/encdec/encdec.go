@@ -65,8 +65,6 @@ func encrypt(password []byte, inputFile string, outputFile string) {
 
 	err = encdec.Encrypt(key, src, dst, &params)
 	checkCloseError(err, dst)
-
-	checkCloseError(err, dst)
 }
 
 func decrypt(password []byte, inputFile string, outputFile string) {
