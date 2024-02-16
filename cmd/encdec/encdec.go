@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"runtime/debug"
 
 	"github.com/bernardo1r/encdec"
 )
 
+var Version string
+
 const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 	"Default option is to decrypt\n\n" +
 	"Options:\n\n" +
+	"    -v    diplay version number\n"+
 	"    -p    password, if not provided will be prompted\n" +
 	"    -d    decrypt\n" +
 	"    -e    encrypt\n"
@@ -91,12 +95,29 @@ func main() {
 	}
 	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s", usage) }
 
-	var decFlag, encFlag bool
+	var versionFlag, decFlag, encFlag bool
 	var pass string
+	flag.BoolVar(&versionFlag, "v", false, "display version number")
 	flag.StringVar(&pass, "p", "", "encryption password")
 	flag.BoolVar(&decFlag, "d", false, "encrypt the input")
 	flag.BoolVar(&encFlag, "e", false, "decrypt the input")
 	flag.Parse()
+
+	if versionFlag {
+		if Version != "" {
+			fmt.Println(Version)
+			return
+		}
+
+		info, ok := debug.ReadBuildInfo()
+		if ok {
+			fmt.Println(info.Main.Version)
+			return
+		}
+
+		fmt.Println("(unknown)")
+		return
+	}
 
 	if decFlag && encFlag {
 		log.Fatalf("More than one option was passed\n")
