@@ -10,9 +10,10 @@ import (
 	"strings"
 )
 
+// Default values of params fields.
 const (
-	ArgonType    = "argon2id"
 	ArgonVersion = 19
+	ArgonType    = "argon2id"
 	SaltSize     = 16
 	ArgonTime    = 1
 	ArgonMemory  = 1 << 21

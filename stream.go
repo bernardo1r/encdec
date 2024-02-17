@@ -19,7 +19,7 @@ type Writer struct {
 	err       error
 }
 
-// NewWriter creates a new Writer using a 32 byte key.
+// NewWriter creates a new Writer using a 256-bit key.
 func NewWriter(key []byte, dst io.Writer, params *Params) (*Writer, error) {
 	err := params.Check()
 	if err != nil {
@@ -110,7 +110,7 @@ type Reader struct {
 	err       error
 }
 
-// NewReader creates a new Reader using a 32 byte key.
+// NewReader creates a new Reader using a 256-bit key.
 func NewReader(key []byte, src io.Reader, params *Params) (*Reader, error) {
 	err := params.Check()
 	if err != nil {

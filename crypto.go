@@ -13,7 +13,7 @@ import (
 	"golang.org/x/term"
 )
 
-const KeySize = 32
+const keySize = 32
 
 // ReadPassword reads the password from stdin without local echo,
 // displaying message before reading the password.
@@ -97,7 +97,7 @@ func Key(password []byte, params *Params) ([]byte, error) {
 		params.ArgonTime,
 		params.ArgonMemory,
 		params.ArgonThreads,
-		KeySize,
+		keySize,
 	)
 
 	return key, nil

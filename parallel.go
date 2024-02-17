@@ -10,13 +10,8 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-// Encrypt encrypts src into dst using the key and the params.
-func Encrypt(
-	key []byte,
-	src io.Reader,
-	dst io.Writer,
-	params *Params,
-) error {
+// Encrypt encrypts src into dst using a 256-bit key and the params.
+func Encrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
 	err := params.Check()
 	if err != nil {
 		return err
@@ -44,13 +39,8 @@ func Encrypt(
 	return nil
 }
 
-// Decrypt decrypts src into dst using the key and the params.
-func Decrypt(
-	key []byte,
-	src io.Reader,
-	dst io.Writer,
-	params *Params,
-) error {
+// Decrypt decrypts src into dst using a 256-bit key and the params.
+func Decrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
 	err := params.Check()
 	if err != nil {
 		return err
@@ -82,13 +72,7 @@ func Decrypt(
 	return nil
 }
 
-func process(
-	src io.Reader,
-	buffInSize int,
-	dst io.Writer,
-	buffOutSize int,
-	p func(input []byte, output []byte) ([]byte, error),
-) error {
+func process(src io.Reader, buffInSize int, dst io.Writer, buffOutSize int, p func(input []byte, output []byte) ([]byte, error)) error {
 	buffIn := make([]byte, buffInSize)
 	buffOut := make([]byte, buffOutSize)
 	group, ctx := errgroup.WithContext(context.Background())
