@@ -1,6 +1,7 @@
 package encdec
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"errors"
@@ -19,7 +20,7 @@ const keySize = 32
 // displaying message before reading the password.
 // It is safe to interrupt the program with SIGINT when blocked
 // by this function as it will restore the previous state of terminal on exit.
-func ReadPassword(message string) ([]byte, error) {
+func ReadPassword(message string, repeat bool) ([]byte, error) {
 	passwordCtx, passwordCancel := context.WithCancel(context.Background())
 	defer passwordCancel()
 	stdin := int(os.Stdin.Fd())
@@ -46,6 +47,20 @@ func ReadPassword(message string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	if repeat {
+		fmt.Print(message)
+		password_check, err := term.ReadPassword(stdin)
+		fmt.Println("")
+		if err != nil {
+			return nil, err
+		}
+
+		if !bytes.Equal(password, password_check) {
+			return nil, errors.New("passwords don't match")
+		}
+	}
+
 	return password, nil
 }
 

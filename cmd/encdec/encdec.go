@@ -15,7 +15,7 @@ var Version string
 const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 	"Default option is to decrypt\n\n" +
 	"Options:\n\n" +
-	"    -v    diplay version number\n"+
+	"    -v    diplay version number\n" +
 	"    -p    password, if not provided will be prompted\n" +
 	"    -d    decrypt\n" +
 	"    -e    encrypt\n"
@@ -136,7 +136,7 @@ func main() {
 	if pass != "" {
 		password = []byte(pass)
 	} else {
-		password, err = encdec.ReadPassword(passwordMessage)
+		password, err = encdec.ReadPassword(passwordMessage, true)
 		checkError(err)
 	}
 
