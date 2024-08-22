@@ -9,7 +9,7 @@ import (
 	"golang.org/x/crypto/chacha20poly1305"
 )
 
-// Writer writes to underlying writer encrypting the data
+// Writer writes to underlying writer encrypting the data.
 type Writer struct {
 	aead      cipher.AEAD
 	chunkSize int64
@@ -21,7 +21,10 @@ type Writer struct {
 
 // NewWriter creates a new Writer using a 256-bit key.
 func NewWriter(key []byte, dst io.Writer, params *Params) (*Writer, error) {
-	err := params.Check()
+	if params == nil {
+		return nil, ErrNilParams
+	}
+	err := params.checkFormatted()
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +115,10 @@ type Reader struct {
 
 // NewReader creates a new Reader using a 256-bit key.
 func NewReader(key []byte, src io.Reader, params *Params) (*Reader, error) {
-	err := params.Check()
+	if params == nil {
+		return nil, ErrNilParams
+	}
+	err := params.checkFormatted()
 	if err != nil {
 		return nil, err
 	}

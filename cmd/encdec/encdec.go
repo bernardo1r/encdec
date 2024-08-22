@@ -22,20 +22,6 @@ const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 
 const passwordMessage = "Password: "
 
-func checkError(err error) {
-	if err != nil {
-		log.Fatalln(err)
-	}
-}
-
-func checkCloseError(err error, file *os.File) {
-	if err != nil {
-		file.Close()
-		os.Remove(file.Name())
-		log.Fatalln(err)
-	}
-}
-
 func openFiles(inputFile string, outputFile string) (*os.File, *os.File, error) {
 	src, err := os.Open(inputFile)
 	if err != nil {
@@ -51,40 +37,82 @@ func openFiles(inputFile string, outputFile string) (*os.File, *os.File, error) 
 	return src, dst, nil
 }
 
-func encrypt(password []byte, inputFile string, outputFile string) {
+func encrypt(password []byte, inputFile string, outputFile string) (err error) {
 	src, dst, err := openFiles(inputFile, outputFile)
-	checkError(err)
-	defer src.Close()
-	defer dst.Close()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err2 := src.Close()
+		if err2 != nil && err == nil {
+			err = err2
+		}
+
+		err2 = dst.Close()
+		if err2 != nil && err == nil {
+			err = err2
+		}
+
+		if err != nil {
+			os.Remove(outputFile)
+		}
+	}()
 
 	var params encdec.Params
 	key, err := encdec.Key(password, &params)
-	checkCloseError(err, dst)
+	if err != nil {
+		return err
+	}
 
 	header, err := params.MarshalHeader()
-	checkCloseError(err, dst)
+	if err != nil {
+		return err
+	}
 
 	_, err = dst.Write(header)
-	checkCloseError(err, dst)
+	if err != nil {
+		return err
+	}
 
 	err = encdec.Encrypt(key, src, dst, &params)
-	checkCloseError(err, dst)
+	return err
 }
 
-func decrypt(password []byte, inputFile string, outputFile string) {
+func decrypt(password []byte, inputFile string, outputFile string) (err error) {
 	src, dst, err := openFiles(inputFile, outputFile)
-	checkError(err)
-	defer src.Close()
-	defer dst.Close()
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		err2 := src.Close()
+		if err2 != nil && err == nil {
+			err = err2
+		}
+
+		err2 = dst.Close()
+		if err2 != nil && err == nil {
+			err = err2
+		}
+
+		if err != nil {
+			os.Remove(outputFile)
+		}
+	}()
 
 	params, err := encdec.ParseHeader(src)
-	checkCloseError(err, dst)
+	if err != nil {
+		return err
+	}
 
 	key, err := encdec.Key(password, params)
-	checkCloseError(err, dst)
+	if err != nil {
+		return err
+	}
 
 	err = encdec.Decrypt(key, src, dst, params)
-	checkCloseError(err, dst)
+	return err
 }
 
 func main() {
@@ -120,15 +148,15 @@ func main() {
 	}
 
 	if decFlag && encFlag {
-		log.Fatalf("More than one option was passed\n")
+		log.Fatalln("more than one option was passed")
 	}
 
 	var inputFile, outputFile string
 	if inputFile = flag.Arg(0); inputFile == "" {
-		log.Fatalf("Error: Input file not specified\n")
+		log.Fatalln("input file not specified")
 	}
 	if outputFile = flag.Arg(1); outputFile == "" {
-		log.Fatalf("Error: Output file not specified\n")
+		log.Fatalln("output file not specified")
 	}
 
 	var password []byte
@@ -136,14 +164,34 @@ func main() {
 	if pass != "" {
 		password = []byte(pass)
 	} else {
-		password, err = encdec.ReadPassword(passwordMessage, true)
-		checkError(err)
+		if encFlag {
+			password, err = encdec.ReadPassword(passwordMessage, true)
+		} else {
+			password, err = encdec.ReadPassword(passwordMessage, false)
+		}
+		if err != nil {
+			log.Fatalf("failed to read password: %v\n", err)
+		}
+	}
+
+	if len(password) == 0 {
+		log.Fatalln("password not provided")
 	}
 
 	switch {
 	case encFlag:
-		encrypt(password, inputFile, outputFile)
+		err = encrypt(password, inputFile, outputFile)
+		if err != nil {
+			err = fmt.Errorf("failed to encrypt: %w", err)
+		}
 	default:
-		decrypt(password, inputFile, outputFile)
+		err = decrypt(password, inputFile, outputFile)
+		if err != nil {
+			err = fmt.Errorf("failed to decrypt: %w", err)
+		}
+	}
+
+	if err != nil {
+		log.Fatalln(err)
 	}
 }

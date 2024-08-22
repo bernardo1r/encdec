@@ -91,9 +91,9 @@ func random(n uint8) ([]byte, error) {
 // first recommended parameters option specified in RFC9106.
 func Key(password []byte, params *Params) ([]byte, error) {
 	if params == nil {
-		return nil, errors.New("")
+		return nil, ErrNilParams
 	}
-	err := params.Check()
+	err := params.checkFormatted()
 	if err != nil {
 		return nil, err
 	}

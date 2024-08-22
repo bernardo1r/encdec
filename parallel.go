@@ -12,7 +12,10 @@ import (
 
 // Encrypt encrypts src into dst using a 256-bit key and the params.
 func Encrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
-	err := params.Check()
+	if params == nil {
+		return ErrNilParams
+	}
+	err := params.checkFormatted()
 	if err != nil {
 		return err
 	}
@@ -41,7 +44,10 @@ func Encrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
 
 // Decrypt decrypts src into dst using a 256-bit key and the params.
 func Decrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
-	err := params.Check()
+	if params == nil {
+		return ErrNilParams
+	}
+	err := params.checkFormatted()
 	if err != nil {
 		return err
 	}

@@ -10,20 +10,26 @@ import (
 	"strings"
 )
 
-// Default values of params fields.
+// Default values of params field.
 const (
 	ArgonVersion = 19
 	ArgonType    = "argon2id"
-	SaltSize     = 16
+	SaltSize     = 16 // 16 Bytes
 	ArgonTime    = 1
-	ArgonMemory  = 1 << 21
+	ArgonMemory  = 1 << 21 // 2 MiB * KiB = 2 GiB
 	ArgonThreads = 4
 	ChunkSize    = 64 * (1 << 10) // 64 KiB
+)
+
+var (
+	ErrNilParams = errors.New("params is nil")
 )
 
 // Params represents the parameters used to generate a symmetric key using
 // Argon2 and the chunk size in bytes for splitting the payload before
 // encrypting they with unique nonces.
+//
+// The zero value is ready to use.
 type Params struct {
 	// ArgonVersion defines what version number of Argon2
 	// will be used to derivate the key.
@@ -65,25 +71,23 @@ func NewParams() *Params {
 // when a field with the zero value is detected or returning an error
 // if a field has an invalid value.
 func (p *Params) Check() error {
-	errInfoLevelString := "params: "
-
 	if p.ArgonType == "" {
 		p.ArgonType = ArgonType
 	} else if p.ArgonType != ArgonType {
-		return errors.New(errInfoLevelString + "invalid argon2 type")
+		return errors.New("invalid argon2 type")
 	}
 
 	if p.ArgonVersion == 0 {
 		p.ArgonVersion = ArgonVersion
 	} else if p.ArgonVersion != ArgonVersion {
-		return errors.New(errInfoLevelString + "invalid argon2 version")
+		return errors.New("invalid argon2 version")
 	}
 
 	if p.SaltSize == 0 {
 		p.SaltSize = SaltSize
 	}
 	if p.Salt != nil && len(p.Salt) != int(p.SaltSize) {
-		return errors.New(errInfoLevelString + "salt is not the same size as salt size")
+		return errors.New("salt is not the same size as salt size")
 	}
 
 	if p.ArgonTime == 0 {
@@ -101,7 +105,16 @@ func (p *Params) Check() error {
 	if p.ChunkSize == 0 {
 		p.ChunkSize = ChunkSize
 	} else if p.ChunkSize < 0 {
-		return errors.New(errInfoLevelString + "chunk size too small")
+		return errors.New("chunk size too small")
+	}
+
+	return nil
+}
+
+func (p *Params) checkFormatted() error {
+	err := p.Check()
+	if err != nil {
+		return fmt.Errorf("params: %w", err)
 	}
 
 	return nil
@@ -110,7 +123,7 @@ func (p *Params) Check() error {
 // MarshalHeader returns a string header as a byte slice made from
 // the Params fields. Returns an error if the Params used are not valid.
 func (p *Params) MarshalHeader() ([]byte, error) {
-	err := p.Check()
+	err := p.checkFormatted()
 	if err != nil {
 		return nil, err
 	}
