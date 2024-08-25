@@ -53,13 +53,6 @@ func (w *Writer) flush() error {
 	return err
 }
 
-func min(x int, y int) int {
-	if x < y {
-		return x
-	}
-	return y
-}
-
 // Write writes len(p) bytes from p to the buffer.
 // If the buffer is complete it will encrypt the data and
 // write to the underlying writer with the AEAD tag appended to it.

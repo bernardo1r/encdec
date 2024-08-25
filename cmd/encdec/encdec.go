@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"runtime/debug"
@@ -75,7 +76,18 @@ func encrypt(password []byte, inputFile string, outputFile string) (err error) {
 		return err
 	}
 
-	err = encdec.Encrypt(key, src, dst, &params)
+	writer, err := encdec.NewWriter(key, dst, &params)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		err2 := writer.Close()
+		if err2 != nil && err == nil {
+			err = err2
+		}
+	}()
+
+	_, err = io.Copy(writer, src)
 	return err
 }
 
@@ -111,7 +123,12 @@ func decrypt(password []byte, inputFile string, outputFile string) (err error) {
 		return err
 	}
 
-	err = encdec.Decrypt(key, src, dst, params)
+	reader, err := encdec.NewReader(key, src, params)
+	if err != nil {
+		return err
+	}
+
+	_, err = io.Copy(dst, reader)
 	return err
 }
 
