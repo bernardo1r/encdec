@@ -99,7 +99,7 @@ func encdecMain() (err error) {
 
 	var (
 		versionFlag, decFlag, encFlag, helpFlag bool
-		passwordFlag string
+		passwordFlag                            string
 	)
 	flag.BoolVar(&helpFlag, "help", false, "display program usage")
 	flag.BoolVar(&helpFlag, "h", false, "display program usage")
@@ -146,7 +146,7 @@ func encdecMain() (err error) {
 	if !checkStdoutRedirected() {
 		return errors.New("cowardly refusing to output to terminal")
 	}
-	
+
 	var src *os.File
 	if okStdin {
 		src = os.Stdin
