@@ -78,18 +78,11 @@ func decrypt(password []byte, src io.Reader, dst io.Writer) (err error) {
 }
 
 func checkStdinRedirected() bool {
-	if term.IsTerminal(int(os.Stdin.Fd())) {
-		return false
-	}
-
-	return true
+	return !term.IsTerminal(int(os.Stdin.Fd()))
 }
 
 func checkStdoutRedirected() bool {
-	if term.IsTerminal(int(os.Stdout.Fd())) {
-		return false
-	}
-	return true
+	return !term.IsTerminal(int(os.Stdout.Fd()))
 }
 
 func encdecMain() (err error) {
@@ -140,7 +133,7 @@ func encdecMain() (err error) {
 		return errors.New("ambiguous input file provided from both stdin and file name")
 	}
 	if !okStdin && inputFile == "" {
-		return errors.New("input file not provided nor from stdin nor from file name")
+		return errors.New("input file not provided from stdin or file name")
 	}
 
 	if !checkStdoutRedirected() {

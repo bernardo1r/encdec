@@ -15,7 +15,7 @@ import (
 
 const keySize = 32
 
-func withTerminal(f func(in *os.File, out *os.File) error) (err error) {
+func WithTerminal(f func(in *os.File, out *os.File) error) (err error) {
 	if runtime.GOOS == "windows" {
 		in, err := os.OpenFile("CONIN$", os.O_RDWR, 0)
 		if err != nil {
@@ -48,7 +48,7 @@ func withTerminal(f func(in *os.File, out *os.File) error) (err error) {
 }
 
 func printfToTerminal(message string) error {
-	err := withTerminal(func(_ *os.File, out *os.File) error {
+	err := WithTerminal(func(_ *os.File, out *os.File) error {
 		_, err := fmt.Fprint(out, message)
 		return err
 	})
@@ -57,7 +57,7 @@ func printfToTerminal(message string) error {
 
 func readPasswordFromTerminal() ([]byte, error) {
 	var password []byte
-	err := withTerminal(func(in *os.File, _ *os.File) error {
+	err := WithTerminal(func(in *os.File, _ *os.File) error {
 		var err error
 		password, err = term.ReadPassword(int(in.Fd()))
 		return err
