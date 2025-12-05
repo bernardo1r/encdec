@@ -16,9 +16,9 @@ import (
 var dirs *utils.Dirs
 
 type commandHelper struct {
-	ExecName string
-	ExecArgs []string
-	CmdOptions []utils.CmdOptions
+	ExecName         string
+	ExecArgs         []string
+	CmdOptions       []utils.CmdOptions
 	ExitCodeExpected int
 }
 
@@ -37,7 +37,7 @@ func execCommand(t *testing.T, helper *commandHelper) {
 	t.Helper()
 	cmd, err := utils.NewCmd(
 		exec.Command(helper.ExecName, helper.ExecArgs...),
-		helper.CmdOptions...
+		helper.CmdOptions...,
 	)
 	if err != nil {
 		t.Error(err)
@@ -275,7 +275,7 @@ func TestArgumentFile(t *testing.T) {
 func TestMain(m *testing.M) {
 	var (
 		binaryPath string
-		mainPath string
+		mainPath   string
 	)
 	flag.StringVar(&binaryPath, "b", "", "path to encdec binary file to be tested")
 	flag.StringVar(&mainPath, "src", "", "path to encdec main source file to be tested")
@@ -303,7 +303,7 @@ func TestMain(m *testing.M) {
 	code := m.Run()
 
 	err = dirs.TearDown()
-	if err != nil { 
+	if err != nil {
 		log.Fatalln(err)
 	}
 

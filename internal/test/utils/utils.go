@@ -205,7 +205,7 @@ func (dirs *Dirs) setup(compile bool) error {
 func NewDirs(testObjectsDir string, programPath string, compile bool) (*Dirs, error) {
 	dirs := &Dirs{
 		testObjectsDir: testObjectsDir,
-		commandPath: programPath,
+		commandPath:    programPath,
 	}
 
 	err := dirs.setup(compile)
@@ -268,7 +268,7 @@ func (session *Session) RandomFilename() (string, error) {
 	}
 
 	name := base64.RawURLEncoding.EncodeToString(b)
-	filename := filepath.Join(session.testObjectsDir,name)
+	filename := filepath.Join(session.testObjectsDir, name)
 	session.filepaths = append(session.filepaths, filename)
 
 	return filename, nil

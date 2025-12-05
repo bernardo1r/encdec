@@ -1,0 +1,62 @@
+name: Tests
+
+on: [push, pull_request]
+
+jobs:
+  variables:
+    runs-on: ubuntu-latest
+    outputs:
+      GO_VERSION: ${{ steps.vars.outputs.GO_VERSION }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set go version
+        id: vars
+        run: |
+          GO_VERSION=$(head -n 3 go.mod | tail -n 1 | cut -d ' ' -f2)
+          echo "GO_VERSION=$GO_VERSION" >> $GITHUB_OUTPUT
+
+  analysis:
+    needs: variables
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ needs.variables.outputs.GO_VERSION }}
+
+      - name: Analysis
+        run: go vet .
+
+  format:
+    needs:
+      - variables
+      - analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ needs.variables.outputs.GO_VERSION }}
+
+      - name: Check format
+        run: gofmt -l .
+
+  tests:
+    needs:
+      - variables
+      - format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-go@v6
+        with:
+          go-version: ${{ needs.variables.outputs.GO_VERSION }}
+
+      - name: Test main
+        run: |
+          go test -c cmd/encdec/encdec*
+          script -e -q -c "./main.test -test.v -src cmd/encdec/encdec.go" /dev/null
