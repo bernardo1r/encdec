@@ -5,7 +5,6 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-	"io"
 	"strconv"
 	"strings"
 )
@@ -145,21 +144,16 @@ func (p *Params) MarshalHeader() ([]byte, error) {
 
 // ParseHeader parses the header of the given src stream.
 // It create a new Params object and load its fields from the provided header.
-func ParseHeader(src io.ReadSeeker) (*Params, error) {
+func ParseHeader(src *bufio.Reader) (*Params, error) {
 	errInfoLevelString := "parsing header: "
 	errParsing := errors.New(errInfoLevelString + "corrupted header")
 
-	buff := bufio.NewReader(src)
-	line, err := buff.ReadString('\n')
+	line, err := src.ReadString('\n')
 	if err != nil {
 		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
 	}
 	line = line[:len(line)-1]
 
-	_, err = src.Seek(int64(len(line)+1), io.SeekStart)
-	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
-	}
 	args := strings.Split(line, "$")
 	if len(args) != 6 || args[0] != "" {
 		fmt.Println("1")

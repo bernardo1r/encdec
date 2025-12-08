@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -9,11 +11,12 @@ import (
 	"runtime/debug"
 
 	"github.com/bernardo1r/encdec"
+	"golang.org/x/term"
 )
 
 var Version string
 
-const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
+const usage = "Usage: encdec [options...] [INPUT_FILE]\n" +
 	"Default option is to decrypt\n\n" +
 	"Options:\n\n" +
 	"    -v    diplay version number\n" +
@@ -23,43 +26,7 @@ const usage = "Usage: encdec [options...] [INPUT_FILE] [OUTPUT_FILE]\n" +
 
 const passwordMessage = "Password: "
 
-func openFiles(inputFile string, outputFile string) (*os.File, *os.File, error) {
-	src, err := os.Open(inputFile)
-	if err != nil {
-		return nil, nil, fmt.Errorf("input file: %w", err)
-	}
-
-	dst, err := os.Create(outputFile)
-	if err != nil {
-		src.Close()
-		return nil, nil, fmt.Errorf("output file: %w", err)
-	}
-
-	return src, dst, nil
-}
-
-func encrypt(password []byte, inputFile string, outputFile string) (err error) {
-	src, dst, err := openFiles(inputFile, outputFile)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		err2 := src.Close()
-		if err2 != nil && err == nil {
-			err = err2
-		}
-
-		err2 = dst.Close()
-		if err2 != nil && err == nil {
-			err = err2
-		}
-
-		if err != nil {
-			os.Remove(outputFile)
-		}
-	}()
-
+func encrypt(password []byte, src io.Reader, dst io.Writer) (err error) {
 	var params encdec.Params
 	key, err := encdec.Key(password, &params)
 	if err != nil {
@@ -82,38 +49,16 @@ func encrypt(password []byte, inputFile string, outputFile string) (err error) {
 	}
 	defer func() {
 		err2 := writer.Close()
-		if err2 != nil && err == nil {
-			err = err2
-		}
+		err = errors.Join(err, err2)
 	}()
 
 	_, err = io.Copy(writer, src)
 	return err
 }
 
-func decrypt(password []byte, inputFile string, outputFile string) (err error) {
-	src, dst, err := openFiles(inputFile, outputFile)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		err2 := src.Close()
-		if err2 != nil && err == nil {
-			err = err2
-		}
-
-		err2 = dst.Close()
-		if err2 != nil && err == nil {
-			err = err2
-		}
-
-		if err != nil {
-			os.Remove(outputFile)
-		}
-	}()
-
-	params, err := encdec.ParseHeader(src)
+func decrypt(password []byte, src io.Reader, dst io.Writer) (err error) {
+	buff := bufio.NewReader(src)
+	params, err := encdec.ParseHeader(buff)
 	if err != nil {
 		return err
 	}
@@ -123,7 +68,7 @@ func decrypt(password []byte, inputFile string, outputFile string) (err error) {
 		return err
 	}
 
-	reader, err := encdec.NewReader(key, src, params)
+	reader, err := encdec.NewReader(key, buff, params)
 	if err != nil {
 		return err
 	}
@@ -132,21 +77,35 @@ func decrypt(password []byte, inputFile string, outputFile string) (err error) {
 	return err
 }
 
-func main() {
+func checkStdinRedirected() bool {
+	return !term.IsTerminal(int(os.Stdin.Fd()))
+}
+
+func checkStdoutRedirected() bool {
+	return !term.IsTerminal(int(os.Stdout.Fd()))
+}
+
+func encdecMain() (err error) {
 	log.SetFlags(0)
 
-	if len(os.Args) == 1 {
-		log.Fatalf("%s", usage)
-	}
-	flag.Usage = func() { fmt.Fprintf(os.Stderr, "%s", usage) }
+	flag.Usage = func() { fmt.Fprint(os.Stderr, usage) }
 
-	var versionFlag, decFlag, encFlag bool
-	var pass string
+	var (
+		versionFlag, decFlag, encFlag, helpFlag bool
+		passwordFlag                            string
+	)
+	flag.BoolVar(&helpFlag, "help", false, "display program usage")
+	flag.BoolVar(&helpFlag, "h", false, "display program usage")
 	flag.BoolVar(&versionFlag, "v", false, "display version number")
-	flag.StringVar(&pass, "p", "", "encryption password")
-	flag.BoolVar(&decFlag, "d", false, "encrypt the input")
-	flag.BoolVar(&encFlag, "e", false, "decrypt the input")
+	flag.StringVar(&passwordFlag, "p", "", "encryption password")
+	flag.BoolVar(&decFlag, "d", false, "decrypt the input")
+	flag.BoolVar(&encFlag, "e", false, "encrypt the input")
 	flag.Parse()
+
+	if helpFlag {
+		flag.Usage()
+		return
+	}
 
 	if versionFlag {
 		if Version != "" {
@@ -165,49 +124,69 @@ func main() {
 	}
 
 	if decFlag && encFlag {
-		log.Fatalln("more than one option was passed")
+		return errors.New("encryption and decryption options were passed")
 	}
 
-	var inputFile, outputFile string
-	if inputFile = flag.Arg(0); inputFile == "" {
-		log.Fatalln("input file not specified")
+	inputFile := flag.Arg(0)
+	okStdin := checkStdinRedirected()
+	if okStdin && inputFile != "" {
+		return errors.New("ambiguous input file provided from both stdin and file name")
 	}
-	if outputFile = flag.Arg(1); outputFile == "" {
-		log.Fatalln("output file not specified")
+	if !okStdin && inputFile == "" {
+		return errors.New("input file not provided from stdin or file name")
 	}
+
+	if !checkStdoutRedirected() {
+		return errors.New("cowardly refusing to output to terminal")
+	}
+
+	var src *os.File
+	if okStdin {
+		src = os.Stdin
+	} else {
+		src, err = os.Open(inputFile)
+		if err != nil {
+			return fmt.Errorf("opening input file: %w", err)
+		}
+		defer func() {
+			err2 := src.Close()
+			err = errors.Join(err, err2)
+		}()
+	}
+
+	dst := os.Stdout
 
 	var password []byte
-	var err error
-	if pass != "" {
-		password = []byte(pass)
+	if passwordFlag != "" {
+		password = []byte(passwordFlag)
 	} else {
-		if encFlag {
-			password, err = encdec.ReadPassword(passwordMessage, true)
-		} else {
-			password, err = encdec.ReadPassword(passwordMessage, false)
-		}
+		password, err = encdec.ReadPassword(passwordMessage, encFlag)
 		if err != nil {
-			log.Fatalf("failed to read password: %v\n", err)
+			return fmt.Errorf("failed to read password: %w", err)
 		}
 	}
-
 	if len(password) == 0 {
-		log.Fatalln("password not provided")
+		return errors.New("password not provided")
 	}
 
 	switch {
 	case encFlag:
-		err = encrypt(password, inputFile, outputFile)
+		err = encrypt(password, src, dst)
 		if err != nil {
-			err = fmt.Errorf("failed to encrypt: %w", err)
+			return fmt.Errorf("failed to encrypt: %w", err)
 		}
 	default:
-		err = decrypt(password, inputFile, outputFile)
+		err = decrypt(password, src, dst)
 		if err != nil {
-			err = fmt.Errorf("failed to decrypt: %w", err)
+			return fmt.Errorf("failed to decrypt: %w", err)
 		}
 	}
 
+	return nil
+}
+
+func main() {
+	err := encdecMain()
 	if err != nil {
 		log.Fatalln(err)
 	}
