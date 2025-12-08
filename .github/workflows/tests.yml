@@ -58,5 +58,4 @@ jobs:
 
       - name: Test main
         run: |
-          go test -c cmd/encdec/encdec*
-          script -e -q -c "./main.test -test.v -src cmd/encdec/encdec.go" /dev/null
+          script -e -q -c "go test -v cmd/encdec/*" /dev/null

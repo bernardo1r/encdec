@@ -3,15 +3,15 @@ package main_test
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"log"
 	"os"
 	"os/exec"
-	"strings"
 	"testing"
 
 	"github.com/bernardo1r/encdec/internal/test/utils"
 )
+
+const MainPath = "encdec.go"
 
 var dirs *utils.Dirs
 
@@ -57,6 +57,7 @@ func execCommand(t *testing.T, helper *commandHelper) {
 }
 
 func TestFailNoStdinNoStdout(t *testing.T) {
+	t.Parallel()
 	helper := commandHelper{
 		ExecName: dirs.CommandPath(),
 		ExecArgs: []string{"-e", "-p", "hello"},
@@ -70,6 +71,7 @@ func TestFailNoStdinNoStdout(t *testing.T) {
 }
 
 func TestFailNoStdin(t *testing.T) {
+	t.Parallel()
 	session := dirs.Session()
 	t.Cleanup(session.Close)
 
@@ -92,6 +94,7 @@ func TestFailNoStdin(t *testing.T) {
 }
 
 func TestFailNoStdout(t *testing.T) {
+	t.Parallel()
 	helper := commandHelper{
 		ExecName: dirs.CommandPath(),
 		ExecArgs: []string{"-e", "-p", "hello", dirs.CommandPath()},
@@ -105,6 +108,7 @@ func TestFailNoStdout(t *testing.T) {
 }
 
 func TestFailStdinAndFilename(t *testing.T) {
+	t.Parallel()
 	session := dirs.Session()
 	t.Cleanup(session.Close)
 
@@ -127,6 +131,7 @@ func TestFailStdinAndFilename(t *testing.T) {
 }
 
 func TestStdin(t *testing.T) {
+	t.Parallel()
 	session := dirs.Session()
 	t.Cleanup(session.Close)
 
@@ -147,7 +152,7 @@ func TestStdin(t *testing.T) {
 	}
 	execCommand(t, &helper)
 
-	filepath2, err := session.RandomExecutableFilename()
+	filepath2, err := session.RandomFilename()
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -175,6 +180,7 @@ func TestStdin(t *testing.T) {
 }
 
 func TestInputFile(t *testing.T) {
+	t.Parallel()
 	session := dirs.Session()
 	t.Cleanup(session.Close)
 
@@ -196,7 +202,7 @@ func TestInputFile(t *testing.T) {
 	}
 	execCommand(t, &helper)
 
-	filepath2, err := session.RandomExecutableFilename()
+	filepath2, err := session.RandomFilename()
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -224,6 +230,7 @@ func TestInputFile(t *testing.T) {
 }
 
 func TestArgumentFile(t *testing.T) {
+	t.Parallel()
 	session := dirs.Session()
 	t.Cleanup(session.Close)
 
@@ -245,7 +252,7 @@ func TestArgumentFile(t *testing.T) {
 	}
 	execCommand(t, &helper)
 
-	filepath2, err := session.RandomExecutableFilename()
+	filepath2, err := session.RandomFilename()
 	if err != nil {
 		t.Error(err)
 		t.FailNow()
@@ -272,30 +279,143 @@ func TestArgumentFile(t *testing.T) {
 	}
 }
 
+func TestInputAndArgumentFile(t *testing.T) {
+	t.Parallel()
+	session := dirs.Session()
+	t.Cleanup(session.Close)
+
+	password := "hello"
+	filepath1, err := session.RandomFilename()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	helper := commandHelper{
+		ExecName: dirs.CommandPath(),
+		ExecArgs: []string{"-e", "-p", password},
+		CmdOptions: []utils.CmdOptions{
+			utils.WithInputFile(dirs.CommandPath()),
+			utils.WithOutputFile(filepath1),
+		},
+		ExitCodeExpected: 0,
+	}
+	execCommand(t, &helper)
+
+	filepath2, err := session.RandomFilename()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	helper = commandHelper{
+		ExecName: dirs.CommandPath(),
+		ExecArgs: []string{"-p", password, filepath1},
+		CmdOptions: []utils.CmdOptions{
+			utils.WithStdin(),
+			utils.WithOutputFile(filepath2),
+		},
+		ExitCodeExpected: 0,
+	}
+	execCommand(t, &helper)
+
+	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if !ok {
+		t.Error("files are not equal")
+		t.FailNow()
+	}
+}
+
+func TestArgumentAndInputFile(t *testing.T) {
+	t.Parallel()
+	session := dirs.Session()
+	t.Cleanup(session.Close)
+
+	password := "hello"
+	filepath1, err := session.RandomFilename()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+
+	helper := commandHelper{
+		ExecName: dirs.CommandPath(),
+		ExecArgs: []string{"-e", "-p", password, dirs.CommandPath()},
+		CmdOptions: []utils.CmdOptions{
+			utils.WithStdin(),
+			utils.WithOutputFile(filepath1),
+		},
+		ExitCodeExpected: 0,
+	}
+	execCommand(t, &helper)
+
+	filepath2, err := session.RandomFilename()
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	helper = commandHelper{
+		ExecName: dirs.CommandPath(),
+		ExecArgs: []string{"-p", password},
+		CmdOptions: []utils.CmdOptions{
+			utils.WithInputFile(filepath1),
+			utils.WithOutputFile(filepath2),
+		},
+		ExitCodeExpected: 0,
+	}
+	execCommand(t, &helper)
+
+	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
+	if err != nil {
+		t.Error(err)
+		t.FailNow()
+	}
+	if !ok {
+		t.Error("files are not equal")
+		t.FailNow()
+	}
+}
+
 func TestMain(m *testing.M) {
 	var (
 		binaryPath string
 		mainPath   string
 	)
-	flag.StringVar(&binaryPath, "b", "", "path to encdec binary file to be tested")
-	flag.StringVar(&mainPath, "src", "", "path to encdec main source file to be tested")
+	flag.StringVar(&binaryPath, "b", "","path to encdec binary file to be tested "+
+		"(with compiled test this flag or 'src' flag must be provided)",
+	)
+	flag.StringVar(&mainPath, "src", "", "path to encdec main source file to be tested "+
+		"(with compiled test this flag or 'b' flag must be provided)",
+	)
 	flag.Parse()
 
-	if len(binaryPath) == 0 && len(mainPath) == 0 {
-		fmt.Fprintln(os.Stderr, "nor encdec binary file nor source file provided")
+	if len(binaryPath) != 0 && len(mainPath) != 0 {
+		log.Println("Both 'src' and 'b' flag provided")
 		flag.Usage()
 		os.Exit(1)
 	}
 
 	log.SetFlags(log.Llongfile)
 
-	var err error
-	if len(binaryPath) > 0 {
-		binaryPath = strings.TrimPrefix(binaryPath, "./")
-		dirs, err = utils.NewDirs("tests", binaryPath, false)
-	} else {
-		dirs, err = utils.NewDirs("tests", mainPath, true)
+	var (
+		programPath string
+		compile bool
+	)
+	switch {
+	case len(binaryPath) > 0:
+		programPath = binaryPath
+	case len(mainPath) > 0:
+		programPath = mainPath
+		compile = true
+	default:
+		programPath = MainPath
+		compile = true
 	}
+	var err error
+	dirs, err = utils.NewDirs("tests", programPath, compile)
 	if err != nil {
 		log.Fatalln(err)
 	}

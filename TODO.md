@@ -5,5 +5,5 @@
 - [x] Refactor error handling insinde defer with errors.Join
 - [ ] Refactor read password function out of crypto.go file (?)
 - [ ] Check errors.Join behavior with fmt.ErrorF after
-- [ ] Remove debug prints
+- [x] Remove debug prints
 - [ ] Better error messages(?), perhaps with more error variables (?)

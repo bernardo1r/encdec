@@ -274,12 +274,6 @@ func (session *Session) RandomFilename() (string, error) {
 	return filename, nil
 }
 
-func (session *Session) RandomExecutableFilename() (string, error) {
-	filename, err := session.RandomFilename()
-	filename = addExecutableExt(filename)
-	return filename, err
-}
-
 type Cmd struct {
 	closers map[string]io.Closer
 	*exec.Cmd
