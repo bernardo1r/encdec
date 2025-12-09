@@ -11,6 +11,7 @@ import (
 	"runtime/debug"
 
 	"github.com/bernardo1r/encdec"
+	"github.com/bernardo1r/encdec/tui"
 	"golang.org/x/term"
 )
 
@@ -160,7 +161,7 @@ func encdecMain() (err error) {
 	if passwordFlag != "" {
 		password = []byte(passwordFlag)
 	} else {
-		password, err = encdec.ReadPassword(passwordMessage, encFlag)
+		password, err = tui.ReadPassword(passwordMessage, encFlag)
 		if err != nil {
 			return fmt.Errorf("failed to read password: %w", err)
 		}

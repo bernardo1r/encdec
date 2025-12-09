@@ -384,7 +384,7 @@ func TestMain(m *testing.M) {
 		binaryPath string
 		mainPath   string
 	)
-	flag.StringVar(&binaryPath, "b", "","path to encdec binary file to be tested "+
+	flag.StringVar(&binaryPath, "b", "", "path to encdec binary file to be tested "+
 		"(with compiled test this flag or 'src' flag must be provided)",
 	)
 	flag.StringVar(&mainPath, "src", "", "path to encdec main source file to be tested "+
@@ -402,7 +402,7 @@ func TestMain(m *testing.M) {
 
 	var (
 		programPath string
-		compile bool
+		compile     bool
 	)
 	switch {
 	case len(binaryPath) > 0:

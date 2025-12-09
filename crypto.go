@@ -2,110 +2,13 @@ package encdec
 
 import (
 	"crypto/rand"
-	"crypto/subtle"
 	"errors"
 	"fmt"
-	"os"
-	"runtime"
 
 	"golang.org/x/crypto/argon2"
-
-	"golang.org/x/term"
 )
 
 const keySize = 32
-
-func WithTerminal(f func(in *os.File, out *os.File) error) (err error) {
-	if runtime.GOOS == "windows" {
-		in, err := os.OpenFile("CONIN$", os.O_RDWR, 0)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err2 := in.Close()
-			err = errors.Join(err, err2)
-		}()
-
-		out, err := os.OpenFile("CONOUT$", os.O_RDWR, 0)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			err2 := out.Close()
-			err = errors.Join(err, err2)
-		}()
-
-		return f(in, out)
-	}
-
-	tty, err := os.OpenFile("/dev/tty", os.O_RDWR, 0)
-	if err == nil {
-		return f(tty, tty)
-	}
-
-	return errors.New("no terminal available")
-
-}
-
-func printfToTerminal(message string) error {
-	err := WithTerminal(func(_ *os.File, out *os.File) error {
-		_, err := fmt.Fprint(out, message)
-		return err
-	})
-	return err
-}
-
-func readPasswordFromTerminal() ([]byte, error) {
-	var password []byte
-	err := WithTerminal(func(in *os.File, _ *os.File) error {
-		var err error
-		password, err = term.ReadPassword(int(in.Fd()))
-		return err
-	})
-	return password, err
-}
-
-// ReadPassword reads the password from stdin without local echo,
-// displaying message before reading the password.
-// It is safe to interrupt the program with SIGINT when blocked
-// by this function as it will restore the previous state of terminal on exit.
-func ReadPassword(message string, repeat bool) ([]byte, error) {
-	err := printfToTerminal(message)
-	if err != nil {
-		return nil, err
-	}
-
-	password, err := readPasswordFromTerminal()
-	if err != nil {
-		return nil, err
-	}
-
-	err = printfToTerminal("\n")
-	if err != nil {
-		return nil, err
-	}
-	if repeat {
-		err := printfToTerminal(message)
-		if err != nil {
-			return nil, err
-		}
-
-		passwordCheck, err := readPasswordFromTerminal()
-		if err != nil {
-			return nil, err
-		}
-
-		err = printfToTerminal("\n")
-		if err != nil {
-			return nil, err
-		}
-
-		if subtle.ConstantTimeCompare(password, passwordCheck) == 0 {
-			return nil, errors.New("password do not match")
-		}
-	}
-	return password, nil
-}
 
 func incNonce(nonce []byte) error {
 	for i := len(nonce) - 1; i >= 0; i-- {
