@@ -58,4 +58,4 @@ jobs:
 
       - name: Test main
         run: |
-          script -e -q -c "go test -v cmd/encdec/*" /dev/null
+          script -e -q -c "go test ./..." /dev/null
