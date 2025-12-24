@@ -18,6 +18,10 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+func SerrorDiff[V any](expected V, actual V) string {
+	return fmt.Sprintf("expected: %v, got: %v", expected, actual)
+}
+
 func Diff(filepath1 string, filepath2 string) (ok bool, err error) {
 	hasher1 := sha256.New()
 	hasher2 := sha256.New()

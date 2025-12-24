@@ -7,3 +7,5 @@
 - [ ] Check errors.Join behavior with fmt.ErrorF after
 - [x] Remove debug prints
 - [ ] Better error messages(?), perhaps with more error variables (?)
+- [ ] Tests
+- [ ] Rewrite godoc for the new errors created

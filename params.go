@@ -3,7 +3,6 @@ package encdec
 import (
 	"bufio"
 	"encoding/base64"
-	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -18,10 +17,6 @@ const (
 	ArgonMemory  = 1 << 21 // 2 MiB * KiB = 2 GiB
 	ArgonThreads = 4
 	ChunkSize    = 64 * (1 << 10) // 64 KiB
-)
-
-var (
-	ErrNilParams = errors.New("params is nil")
 )
 
 // Params represents the parameters used to generate a symmetric key using
@@ -73,20 +68,29 @@ func (p *Params) Check() error {
 	if p.ArgonType == "" {
 		p.ArgonType = ArgonType
 	} else if p.ArgonType != ArgonType {
-		return errors.New("invalid argon2 type")
+		return ErrArgonType
 	}
 
 	if p.ArgonVersion == 0 {
 		p.ArgonVersion = ArgonVersion
 	} else if p.ArgonVersion != ArgonVersion {
-		return errors.New("invalid argon2 version")
+		return ErrArgonVersion
 	}
 
-	if p.SaltSize == 0 {
-		p.SaltSize = SaltSize
-	}
-	if p.Salt != nil && len(p.Salt) != int(p.SaltSize) {
-		return errors.New("salt is not the same size as salt size")
+	if p.Salt != nil {
+		if len(p.Salt) > (1 << 8) {
+			return ErrSalt
+		}
+
+		if p.SaltSize != 0 && int(p.SaltSize) != len(p.Salt) {
+			return ErrSaltSize
+		}
+
+		p.SaltSize = uint8(len(p.Salt))
+	} else {
+		if p.SaltSize == 0 {
+			p.SaltSize = SaltSize
+		}
 	}
 
 	if p.ArgonTime == 0 {
@@ -104,16 +108,7 @@ func (p *Params) Check() error {
 	if p.ChunkSize == 0 {
 		p.ChunkSize = ChunkSize
 	} else if p.ChunkSize < 0 {
-		return errors.New("chunk size too small")
-	}
-
-	return nil
-}
-
-func (p *Params) checkFormatted() error {
-	err := p.Check()
-	if err != nil {
-		return fmt.Errorf("params: %w", err)
+		return ErrChunkSize
 	}
 
 	return nil
@@ -122,7 +117,7 @@ func (p *Params) checkFormatted() error {
 // MarshalHeader returns a string header as a byte slice made from
 // the Params fields. Returns an error if the Params used are not valid.
 func (p *Params) MarshalHeader() ([]byte, error) {
-	err := p.checkFormatted()
+	err := p.Check()
 	if err != nil {
 		return nil, err
 	}
@@ -142,107 +137,124 @@ func (p *Params) MarshalHeader() ([]byte, error) {
 	return []byte(s), nil
 }
 
+func parseArgonParams(params *Params, value string) error {
+	values := strings.Split(value, ",")
+	if len(values) != 3 {
+		return ErrParsing
+	}
+
+	// Argon time
+	subValues := strings.Split(values[0], "=")
+	if len(subValues) != 2 || subValues[0] != "t" {
+		return ErrParsing
+	}
+	u, err := strconv.ParseUint(subValues[1], 10, 32)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrParsing, ErrArgonTime)
+	}
+	if u == 0 {
+		return ErrArgonTime
+	}
+	params.ArgonTime = uint32(u)
+
+	// Argon memory
+	subValues = strings.Split(values[1], "=")
+	if len(subValues) != 2 || subValues[0] != "m" {
+		return ErrParsing
+	}
+	u, err = strconv.ParseUint(subValues[1], 10, 32)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrParsing, ErrArgonMemory)
+	}
+	if u == 0 {
+		return ErrArgonMemory
+	}
+	params.ArgonMemory = uint32(u)
+
+	// Argon threads
+	subValues = strings.Split(values[2], "=")
+	if len(subValues) != 2 || subValues[0] != "p" {
+		return ErrParsing
+	}
+	u, err = strconv.ParseUint(subValues[1], 10, 8)
+	if err != nil {
+		return fmt.Errorf("%w: %w", ErrParsing, ErrArgonThreads)
+	}
+	if u == 0 {
+		return ErrArgonThreads
+	}
+	params.ArgonThreads = uint8(u)
+
+	return nil
+}
+
 // ParseHeader parses the header of the given src stream.
 // It create a new Params object and load its fields from the provided header.
 func ParseHeader(src *bufio.Reader) (*Params, error) {
-	errInfoLevelString := "parsing header: "
-	errParsing := errors.New(errInfoLevelString + "corrupted header")
 
 	line, err := src.ReadString('\n')
 	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParsing, err)
 	}
 	line = line[:len(line)-1]
 
 	args := strings.Split(line, "$")
 	if len(args) != 6 || args[0] != "" {
-		fmt.Println("1")
-		return nil, errParsing
+		return nil, ErrParsing
 	}
 
 	var params Params
 	params.ArgonType = args[1]
+	if len(params.ArgonType) == 0 {
+		return nil, ErrArgonType
+	}
 
+	// Argon version
 	values := strings.Split(args[2], "=")
 	if len(values) != 2 || values[0] != "v" {
-		fmt.Println("2")
-		return nil, errParsing
+		return nil, ErrParsing
 	}
 	u, err := strconv.ParseUint(values[1], 10, 8)
 	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 version %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParsing, ErrArgonVersion)
+	}
+	if u == 0 {
+		return nil, ErrArgonVersion
 	}
 	params.ArgonVersion = uint8(u)
 
-	values = strings.Split(args[3], ",")
-	if len(values) != 3 {
-		fmt.Println("3")
-		return nil, errParsing
-	}
-
-	subValues := strings.Split(values[0], "=")
-	if len(subValues) != 2 || subValues[0] != "t" {
-		fmt.Println("4")
-		return nil, errParsing
-	}
-	u, err = strconv.ParseUint(subValues[1], 10, 32)
+	// Argon params
+	err = parseArgonParams(&params, args[3])
 	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 time: %w", err)
+		return nil, err
 	}
-	params.ArgonTime = uint32(u)
 
-	subValues = strings.Split(values[1], "=")
-	if len(subValues) != 2 || subValues[0] != "m" {
-		fmt.Println("5")
-		return nil, errParsing
-	}
-	u, err = strconv.ParseUint(subValues[1], 10, 32)
-	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 memory: %w", err)
-	}
-	params.ArgonMemory = uint32(u)
-
-	subValues = strings.Split(values[2], "=")
-	if len(subValues) != 2 || subValues[0] != "p" {
-		fmt.Println("6")
-		return nil, errParsing
-	}
-	u, err = strconv.ParseUint(subValues[1], 10, 8)
-	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing argon2 threads: %w", err)
-	}
-	params.ArgonThreads = uint8(u)
-
+	// Salt
 	values = strings.Split(args[4], "=")
 	if len(values) != 2 || values[0] != "s" {
-		fmt.Println(values)
-		fmt.Println("7")
-		return nil, errParsing
+		return nil, ErrParsing
 	}
 	params.Salt, err = base64.RawStdEncoding.DecodeString(values[1])
 	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing salt: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParsing, ErrSalt)
 	}
-	if len(params.Salt) > (1 << 8) {
-		return nil, errors.New(errInfoLevelString + "parsing salt: salt too long")
+	if len(params.Salt) == 0 {
+		return nil, ErrSalt
 	}
-	params.SaltSize = uint8(len(params.Salt))
 
+	// Chunk size
 	values = strings.Split(args[5], "=")
 	if len(values) != 2 || values[0] != "b" {
-		fmt.Println("8")
-		return nil, errParsing
+		return nil, ErrParsing
 	}
 	i, err := strconv.ParseInt(values[1], 10, 64)
 	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"parsing chunk size: %w", err)
+		return nil, fmt.Errorf("%w: %w", ErrParsing, ErrChunkSize)
 	}
-
-	params.ChunkSize = int64(i)
-	err = params.Check()
-	if err != nil {
-		return nil, fmt.Errorf(errInfoLevelString+"%w", err)
+	if i <= 0 {
+		return nil, ErrChunkSize
 	}
+	params.ChunkSize = i
 
-	return &params, nil
+	return &params, params.Check()
 }

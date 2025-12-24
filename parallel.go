@@ -1,3 +1,4 @@
+//go:build exclude
 package encdec
 
 import (
@@ -15,7 +16,7 @@ func Encrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
 	if params == nil {
 		return ErrNilParams
 	}
-	err := params.checkFormatted()
+	err := params.Check()
 	if err != nil {
 		return err
 	}
@@ -47,7 +48,7 @@ func Decrypt(key []byte, src io.Reader, dst io.Writer, params *Params) error {
 	if params == nil {
 		return ErrNilParams
 	}
-	err := params.checkFormatted()
+	err := params.Check()
 	if err != nil {
 		return err
 	}

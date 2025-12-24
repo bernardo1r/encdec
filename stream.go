@@ -24,7 +24,7 @@ func NewWriter(key []byte, dst io.Writer, params *Params) (*Writer, error) {
 	if params == nil {
 		return nil, ErrNilParams
 	}
-	err := params.checkFormatted()
+	err := params.Check()
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +111,7 @@ func NewReader(key []byte, src io.Reader, params *Params) (*Reader, error) {
 	if params == nil {
 		return nil, ErrNilParams
 	}
-	err := params.checkFormatted()
+	err := params.Check()
 	if err != nil {
 		return nil, err
 	}

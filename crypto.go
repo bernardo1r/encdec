@@ -8,6 +8,21 @@ import (
 	"golang.org/x/crypto/argon2"
 )
 
+var (
+	ErrNilParams = errors.New("params is nil")
+
+	ErrArgonVersion = errors.New("invalid argon2 version")
+	ErrArgonType = errors.New("invalid argon2 type")
+	ErrSaltSize = errors.New("salt is not the same size as salt size")
+	ErrSalt = errors.New("invalid salt size")
+	ErrArgonTime = errors.New("invalid argon time")
+	ErrArgonMemory = errors.New("invalid argon memory size")
+	ErrArgonThreads = errors.New("invalid argon threads count")
+	ErrChunkSize = errors.New("invalid chunk size")
+
+	ErrParsing = errors.New("parsing header")
+)
+
 const keySize = 32
 
 func incNonce(nonce []byte) error {
@@ -39,7 +54,7 @@ func Key(password []byte, params *Params) ([]byte, error) {
 	if params == nil {
 		return nil, ErrNilParams
 	}
-	err := params.checkFormatted()
+	err := params.Check()
 	if err != nil {
 		return nil, err
 	}

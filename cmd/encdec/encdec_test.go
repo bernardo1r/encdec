@@ -40,19 +40,18 @@ func execCommand(t *testing.T, helper *commandHelper) {
 		helper.CmdOptions...,
 	)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	err = cmd.Run()
 	err = ignoreExitError(err)
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 	}
 
 	exitCode := cmd.ProcessState.ExitCode()
 	if exitCode != helper.ExitCodeExpected {
-		t.Errorf("expected: exit code %v, got: exit code %v\n", helper.ExitCodeExpected, exitCode)
-		t.FailNow()
+		t.Fatalf("expected: exit code %v, got: exit code %v\n", helper.ExitCodeExpected, exitCode)
 	}
 }
 
@@ -77,8 +76,7 @@ func TestFailNoStdin(t *testing.T) {
 
 	outputfilepath, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -114,8 +112,7 @@ func TestFailStdinAndFilename(t *testing.T) {
 
 	outputfilepath, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -138,8 +135,7 @@ func TestStdin(t *testing.T) {
 	password := "hello"
 	filepath1, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	helper := commandHelper{
 		ExecName: dirs.CommandPath(),
@@ -154,8 +150,7 @@ func TestStdin(t *testing.T) {
 
 	filepath2, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	helper = commandHelper{
 		ExecName: dirs.CommandPath(),
@@ -170,12 +165,10 @@ func TestStdin(t *testing.T) {
 
 	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if !ok {
-		t.Error("files are not equal")
-		t.FailNow()
+		t.Fatal("files are not equal")
 	}
 }
 
@@ -187,8 +180,7 @@ func TestInputFile(t *testing.T) {
 	password := "hello"
 	filepath1, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -204,8 +196,7 @@ func TestInputFile(t *testing.T) {
 
 	filepath2, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	helper = commandHelper{
 		ExecName: dirs.CommandPath(),
@@ -220,12 +211,10 @@ func TestInputFile(t *testing.T) {
 
 	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if !ok {
-		t.Error("files are not equal")
-		t.FailNow()
+		t.Fatal("files are not equal")
 	}
 }
 
@@ -237,8 +226,7 @@ func TestArgumentFile(t *testing.T) {
 	password := "hello"
 	filepath1, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -254,7 +242,7 @@ func TestArgumentFile(t *testing.T) {
 
 	filepath2, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
+		t.Fatal(err)
 		t.FailNow()
 	}
 	helper = commandHelper{
@@ -270,12 +258,10 @@ func TestArgumentFile(t *testing.T) {
 
 	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if !ok {
-		t.Error("files are not equal")
-		t.FailNow()
+		t.Fatal("files are not equal")
 	}
 }
 
@@ -287,8 +273,7 @@ func TestInputAndArgumentFile(t *testing.T) {
 	password := "hello"
 	filepath1, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -304,8 +289,7 @@ func TestInputAndArgumentFile(t *testing.T) {
 
 	filepath2, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	helper = commandHelper{
 		ExecName: dirs.CommandPath(),
@@ -320,8 +304,7 @@ func TestInputAndArgumentFile(t *testing.T) {
 
 	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if !ok {
 		t.Error("files are not equal")
@@ -337,8 +320,7 @@ func TestArgumentAndInputFile(t *testing.T) {
 	password := "hello"
 	filepath1, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 
 	helper := commandHelper{
@@ -354,8 +336,7 @@ func TestArgumentAndInputFile(t *testing.T) {
 
 	filepath2, err := session.RandomFilename()
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	helper = commandHelper{
 		ExecName: dirs.CommandPath(),
@@ -370,12 +351,10 @@ func TestArgumentAndInputFile(t *testing.T) {
 
 	ok, err := utils.Diff(dirs.CommandPath(), filepath2)
 	if err != nil {
-		t.Error(err)
-		t.FailNow()
+		t.Fatal(err)
 	}
 	if !ok {
-		t.Error("files are not equal")
-		t.FailNow()
+		t.Fatal("files are not equal")
 	}
 }
 
