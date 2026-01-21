@@ -11,6 +11,9 @@ import (
 
 // ReadPassword reads the password from tty without local echo,
 // displaying message before reading the password.
+//
+// If repeat is true, it will read password another time,
+// failing if passwords are not the same.
 func ReadPassword(message string, repeat bool) ([]byte, error) {
 	tty, err := tui.NewTTY()
 	if err != nil {
